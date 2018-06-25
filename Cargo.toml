@@ -1,0 +1,9 @@
+[package]
+name = "rust_opds"
+version = "0.1.0"
+authors = ["Giao Phan <casret@pobox.com>"]
+
+[dependencies]
+zip = "0.4"
+unrar = "0.4.3"
+walkdir = "2"
