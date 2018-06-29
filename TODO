@@ -1,0 +1,7 @@
+- extract comicinfo into db
+- serve OPDS feeds based on db
+- serve comics based on OPDS feed
+- transcode comics to webp
+- track read status
+- create auth
+- track read status per person
