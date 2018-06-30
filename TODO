@@ -1,4 +1,5 @@
 - extract comicinfo into db
+  - upserts
 - serve OPDS feeds based on db
 - serve comics based on OPDS feed
 - transcode comics to webp

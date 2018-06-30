@@ -24,4 +24,4 @@ create index issue_read_at on issue(read_at);
 create index issue_publisher_series on issue(publisher, series);
 create index issue_released_at on issue(released_at);
 
-create virtual table issue_fts USING FTS4(comicinfo);
+create virtual table issue_fts USING FTS4(issue_id, comicinfo);
