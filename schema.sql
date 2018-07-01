@@ -1,7 +1,6 @@
 create table issue (
   filepath TEXT PRIMARY KEY,
-  imported_at TEXT NOT NULL,
-  read_at TEXT,
+  modified_at TEXT NOT NULL,
   comicvine_id INTEGER,
   comicvine_url TEXT,
   series TEXT,
@@ -19,8 +18,7 @@ create table issue (
   page_count INTEGER
 );
 
-create index issue_imported_at on issue(imported_at);
-create index issue_read_at on issue(read_at);
+create index issue_modified_at on issue(modified_at);
 create index issue_publisher_series on issue(publisher, series);
 create index issue_released_at on issue(released_at);
 

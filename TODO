@@ -1,8 +1,10 @@
-- extract comicinfo into db
-  - upserts
+My TODOlist for beta (roughly in priorty order)
+
 - serve OPDS feeds based on db
 - serve comics based on OPDS feed
-- transcode comics to webp
 - track read status
-- create auth
+- tests!!
+- create auth / users
 - track read status per person
+- remove old paths (probably need a seperate binary since we don't want to wipe DB by mistake)
+- transcode comics to webp (70 quality seems to be sweet spot)

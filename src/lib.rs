@@ -15,9 +15,9 @@ use xml::reader::{EventReader, XmlEvent};
 mod db;
 
 pub struct ComicInfo {
+    pub comic_info: Option<String>,
     pub filepath: String,
-    pub imported_at: DateTime<Local>,
-    pub read_at: Option<DateTime<Local>>,
+    pub modified_at: DateTime<Local>,
     pub comicvine_id: Option<i64>,
     pub comicvine_url: Option<String>,
     pub series: Option<String>,
@@ -36,11 +36,11 @@ pub struct ComicInfo {
 }
 
 impl ComicInfo {
-    pub fn new(filepath: &str, content: &str) -> Result<ComicInfo, Error> {
+    pub fn new(entry: &DirEntry, comic_info: Option<String>) -> Result<ComicInfo, Error> {
         let mut info = ComicInfo {
-            filepath: filepath.to_string(),
-            imported_at: Local::now(),
-            read_at: None,
+            comic_info,
+            filepath: entry.path().to_string_lossy().to_string(),
+            modified_at: entry_modified(entry).unwrap_or(Local::now()),
             comicvine_id: None,
             comicvine_url: None,
             series: None,
@@ -57,43 +57,45 @@ impl ComicInfo {
             publisher: None,
             page_count: None,
         };
-        let parser = EventReader::from_str(content);
-        let mut current_string: String = String::from("");
-        let mut year: Option<i32> = None;
-        let mut month: Option<u32> = None;
-        let mut day: Option<u32> = None;
-        for e in parser {
-            match e {
-                Ok(XmlEvent::Characters(s)) => current_string = s,
-                Ok(XmlEvent::EndElement { name }) => {
-                    match name.local_name.as_ref() {
-                        "Title" => info.title = Some(current_string.clone()),
-                        "Series" => info.series = Some(current_string.clone()),
-                        "Number" => info.issue_number = current_string.parse().ok(),
-                        "Web" => info.comicvine_url = Some(current_string.clone()),
-                        "Notes" => (), // TODO: Parse out the comicvine id
-                        "Volume" => info.volume = current_string.parse().ok(),
-                        "Summary" => info.summary = Some(current_string.clone()),
-                        "Year" => year = current_string.parse().ok(),
-                        "Month" => month = current_string.parse().ok(),
-                        "Day" => day = current_string.parse().ok(),
-                        "Writer" => info.writer = Some(current_string.clone()),
-                        "Penciller" => info.penciller = Some(current_string.clone()),
-                        "Inker" => info.inker = Some(current_string.clone()),
-                        "Colorist" => info.colorist = Some(current_string.clone()),
-                        "CoverArtist" => info.cover_artist = Some(current_string.clone()),
-                        "Publisher" => info.publisher = Some(current_string.clone()),
-                        "PageCount" => info.page_count = current_string.parse().ok(),
-                        _ => (),
+        if let Some(ref comic_info) = info.comic_info {
+            let parser = EventReader::from_str(comic_info);
+            let mut current_string: String = String::from("");
+            let mut year: Option<i32> = None;
+            let mut month: Option<u32> = None;
+            let mut day: Option<u32> = None;
+            for e in parser {
+                match e {
+                    Ok(XmlEvent::Characters(s)) => current_string = s,
+                    Ok(XmlEvent::EndElement { name }) => {
+                        match name.local_name.as_ref() {
+                            "Title" => info.title = Some(current_string.clone()),
+                            "Series" => info.series = Some(current_string.clone()),
+                            "Number" => info.issue_number = current_string.parse().ok(),
+                            "Web" => info.comicvine_url = Some(current_string.clone()),
+                            "Notes" => (), // TODO: Parse out the comicvine id
+                            "Volume" => info.volume = current_string.parse().ok(),
+                            "Summary" => info.summary = Some(current_string.clone()),
+                            "Year" => year = current_string.parse().ok(),
+                            "Month" => month = current_string.parse().ok(),
+                            "Day" => day = current_string.parse().ok(),
+                            "Writer" => info.writer = Some(current_string.clone()),
+                            "Penciller" => info.penciller = Some(current_string.clone()),
+                            "Inker" => info.inker = Some(current_string.clone()),
+                            "Colorist" => info.colorist = Some(current_string.clone()),
+                            "CoverArtist" => info.cover_artist = Some(current_string.clone()),
+                            "Publisher" => info.publisher = Some(current_string.clone()),
+                            "PageCount" => info.page_count = current_string.parse().ok(),
+                            _ => (),
+                        }
                     }
+                    Err(e) => Err(e)?,
+                    _ => (),
                 }
-                Err(e) => Err(e)?,
-                _ => (),
             }
-        }
-        if year.is_some() {
-            info.released_at =
-                NaiveDate::from_ymd_opt(year.unwrap(), month.unwrap_or(1), day.unwrap_or(1));
+            if year.is_some() {
+                info.released_at =
+                    NaiveDate::from_ymd_opt(year.unwrap(), month.unwrap_or(1), day.unwrap_or(1));
+            }
         }
         Ok(info)
     }
@@ -119,13 +121,8 @@ pub fn scan_dir(dir: &str) -> Result<(), Error> {
                 Ok(None)
             }
         }?;
-        match comic_info {
-            Some(i) => {
-                let info = ComicInfo::new(&entry.path().to_string_lossy(), &i)?;
-                db.store_comic(&info, &i)?;
-            }
-            None => (),
-        };
+        let info = ComicInfo::new(&entry, comic_info)?;
+        db.store_comic(&info)?;
     }
     Ok(())
 }
@@ -160,4 +157,14 @@ fn process_zip(entry: &DirEntry) -> Result<Option<String>, Error> {
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
     Ok(Some(contents))
+}
+
+fn entry_modified(entry: &DirEntry) -> Option<DateTime<Local>> {
+    match entry.metadata() {
+        Ok(metadata) => match metadata.modified() {
+            Ok(modified) => Some(DateTime::from(modified)),
+            _ => None,
+        },
+        _ => None,
+    }
 }
