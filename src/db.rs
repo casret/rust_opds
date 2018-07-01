@@ -4,6 +4,7 @@ extern crate rusqlite;
 extern crate walkdir;
 
 use super::ComicInfo;
+use chrono::prelude::*;
 use failure::Error;
 use rusqlite::Connection;
 use walkdir::DirEntry;
@@ -50,7 +51,23 @@ impl DB {
         Ok(())
     }
 
-    pub fn check(&self, _entry: &DirEntry) -> bool {
-        true
+    // Basically the only time we shouldn't update is if we know
+    // that path hasn't be modified since we imported it
+    pub fn should_update(&mut self, entry: &DirEntry) -> bool {
+        let path: String = entry.path().to_string_lossy().into();
+        let modified = match entry.metadata() {
+            Ok(metadata) => match metadata.modified() {
+                Ok(modified) => modified,
+                _ => return true
+            }
+            _ => return true
+        };
+
+        let modified: DateTime<Local> = DateTime::from(modified);
+        self.conn.query_row("select imported_at from issue where filepath=?", &[&path], |row| {
+            let imported_at: DateTime<Local> = row.get(0);
+            println!("Comparing {} {} to {}: {}", entry.path().display(), imported_at, modified, imported_at > modified);
+            imported_at < modified
+        }).unwrap_or(true)
     }
 }

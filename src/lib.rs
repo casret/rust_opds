@@ -106,6 +106,11 @@ pub fn scan_dir(dir: &str) -> Result<(), Error> {
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
     {
+        if !db.should_update(&entry) {
+            println!("Skipping unchanged {}", entry.path().display());
+            continue;
+        }
+
         let comic_info = match entry.file_name().to_str() {
             Some(name) if name.ends_with("cbr") => process_rar(&entry),
             Some(name) if name.ends_with("cbz") => process_zip(&entry),
