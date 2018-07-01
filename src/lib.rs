@@ -1,15 +1,15 @@
 extern crate chrono;
 extern crate failure;
 extern crate rusqlite;
-extern crate walkdir;
 extern crate unrar;
+extern crate walkdir;
 extern crate xml;
 extern crate zip;
 
-use std::io::prelude::*;
-use walkdir::{DirEntry, WalkDir};
 use chrono::prelude::*;
 use failure::Error;
+use std::io::prelude::*;
+use walkdir::{DirEntry, WalkDir};
 use xml::reader::{EventReader, XmlEvent};
 
 mod db;
@@ -32,7 +32,7 @@ pub struct ComicInfo {
     pub colorist: Option<String>,
     pub cover_artist: Option<String>,
     pub publisher: Option<String>,
-    pub page_count: Option<i32>
+    pub page_count: Option<i32>,
 }
 
 impl ComicInfo {
@@ -55,7 +55,7 @@ impl ComicInfo {
             colorist: None,
             cover_artist: None,
             publisher: None,
-            page_count: None
+            page_count: None,
         };
         let parser = EventReader::from_str(content);
         let mut current_string: String = String::from("");
@@ -65,7 +65,7 @@ impl ComicInfo {
         for e in parser {
             match e {
                 Ok(XmlEvent::Characters(s)) => current_string = s,
-                Ok(XmlEvent::EndElement{name}) => {
+                Ok(XmlEvent::EndElement { name }) => {
                     match name.local_name.as_ref() {
                         "Title" => info.title = Some(current_string.clone()),
                         "Series" => info.series = Some(current_string.clone()),
@@ -84,46 +84,57 @@ impl ComicInfo {
                         "CoverArtist" => info.cover_artist = Some(current_string.clone()),
                         "Publisher" => info.publisher = Some(current_string.clone()),
                         "PageCount" => info.page_count = current_string.parse().ok(),
-                        _ => ()
+                        _ => (),
                     }
-                },
+                }
                 Err(e) => Err(e)?,
-                _ => ()
+                _ => (),
             }
         }
         if year.is_some() {
-            info.released_at = NaiveDate::from_ymd_opt(year.unwrap(), month.unwrap_or(1), day.unwrap_or(1)); 
+            info.released_at =
+                NaiveDate::from_ymd_opt(year.unwrap(), month.unwrap_or(1), day.unwrap_or(1));
         }
         Ok(info)
     }
 }
 
-pub fn update_database() -> Result<(), Error> {
+pub fn scan_dir(dir: &str) -> Result<(), Error> {
     let mut db = db::DB::new("comics.db")?;
-    for entry in WalkDir::new("/Users/casret/comics").into_iter()
-    .filter_map(|e| e.ok()).filter(|e| e.file_type().is_file()) { 
+    for entry in WalkDir::new(dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+    {
         let comic_info = match entry.file_name().to_str() {
             Some(name) if name.ends_with("cbr") => process_rar(&entry),
             Some(name) if name.ends_with("cbz") => process_zip(&entry),
-            _ => { println!("Skipping {}", entry.path().display()); Ok(None) },
+            _ => {
+                println!("Skipping {}", entry.path().display());
+                Ok(None)
+            }
         }?;
         match comic_info {
             Some(i) => {
                 let info = ComicInfo::new(&entry.path().to_string_lossy(), &i)?;
                 db.store_comic(&info, &i)?;
-            },
-            None => ()
+            }
+            None => (),
         };
     }
     Ok(())
 }
 
-
 fn process_rar(file: &DirEntry) -> Result<Option<String>, Error> {
     println!("Processing {}", file.path().display());
-    for entry in unrar::Archive::new(file.path().to_string_lossy().into()).list().unwrap() {
+    for entry in unrar::Archive::new(file.path().to_string_lossy().into())
+        .list()
+        .unwrap()
+    {
         if let Ok(entry) = entry {
-            if entry.filename != "ComicInfo.xml" { continue; }
+            if entry.filename != "ComicInfo.xml" {
+                continue;
+            }
             // TODO: extract and send
         }
     }
@@ -138,7 +149,7 @@ fn process_zip(entry: &DirEntry) -> Result<Option<String>, Error> {
     let mut file = match archive.by_name("ComicInfo.xml") {
         Ok(file) => file,
         Err(zip::result::ZipError::FileNotFound) => return Ok(None),
-        Err(e) => Err(e)?
+        Err(e) => Err(e)?,
     };
 
     let mut contents = String::new();
