@@ -1,10 +1,17 @@
 extern crate chrono;
+extern crate hyper;
 extern crate failure;
+extern crate futures;
+extern crate r2d2;
+extern crate r2d2_sqlite;
 extern crate rusqlite;
 extern crate unrar;
 extern crate walkdir;
 extern crate xml;
 extern crate zip;
+
+#[macro_use] extern crate log;
+extern crate env_logger;
 
 use chrono::prelude::*;
 use failure::Error;
@@ -13,6 +20,7 @@ use walkdir::{DirEntry, WalkDir};
 use xml::reader::{EventReader, XmlEvent};
 
 mod db;
+pub mod web;
 
 pub struct ComicInfo {
     pub comic_info: Option<String>,
@@ -101,8 +109,15 @@ impl ComicInfo {
     }
 }
 
-pub fn scan_dir(dir: &str) -> Result<(), Error> {
+pub fn run() -> Result<(), Error> {
     let mut db = db::DB::new("comics.db")?;
+    scan_dir("/Users/casret/comics", &mut db)?;
+    let addr = ([127, 0, 0, 1], 3000);
+    web::start_web_service("comics.db", addr.into())?;
+    Ok(())
+}
+
+fn scan_dir(dir: &str, db: &mut db::DB) -> Result<(), Error> {
     for entry in WalkDir::new(dir)
         .into_iter()
         .filter_map(|e| e.ok())

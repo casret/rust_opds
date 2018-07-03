@@ -1,27 +1,27 @@
-extern crate chrono;
-extern crate failure;
-extern crate rusqlite;
-extern crate walkdir;
-
 use super::ComicInfo;
 use chrono::prelude::*;
 use failure::Error;
-use rusqlite::Connection;
 use walkdir::DirEntry;
+use r2d2_sqlite::SqliteConnectionManager;
+use r2d2::Pool;
 
+#[derive(Clone)]
 pub struct DB {
-    conn: Connection,
+    pool: Pool<SqliteConnectionManager>,
 }
 
 impl DB {
     pub fn new(db: &str) -> Result<DB, Error> {
+        let manager = SqliteConnectionManager::file(db);
+        let pool = ::r2d2::Pool::new(manager)?;
         Ok(DB {
-            conn: Connection::open(db)?,
+            pool
         })
     }
 
     pub fn store_comic(&mut self, info: &ComicInfo) -> Result<(), Error> {
-        let mut stmt = self.conn.prepare_cached("replace into issue(filepath, modified_at, comicvine_id,
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare_cached("replace into issue(filepath, modified_at, comicvine_id,
             series, issue_number, volume, title, summary, released_at, writer, penciller,
             inker, colorist, cover_artist, publisher, page_count) values (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)")?;
 
@@ -45,7 +45,7 @@ impl DB {
         ])?;
 
         if let Some(ref comic_info) = info.comic_info {
-            stmt = self.conn
+            stmt = conn
                 .prepare_cached("replace into issue_fts(issue_id, comicinfo) values (?1, ?2)")?;
             stmt.insert(&[&issue_id, comic_info])?;
         }
@@ -61,15 +61,18 @@ impl DB {
             _ => return true,
         };
 
-        self.conn
-            .query_row(
+        if let Ok(conn) = self.pool.get() {
+            conn.query_row(
                 "select modified_at from issue where filepath=?",
                 &[&path],
                 |row| {
                     let modified_at: DateTime<Local> = row.get(0);
                     modified_at < modified
                 },
-            )
-            .unwrap_or(true)
+                )
+                .unwrap_or(true)
+        } else {
+            true
+        }
     }
 }

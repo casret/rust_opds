@@ -1,9 +1,9 @@
-extern crate rust_opds;
-
 extern crate failure;
+extern crate rust_opds;
 
 use failure::Error;
 
 fn main() -> Result<(), Error> {
-    rust_opds::scan_dir("/Users/casret/comics")
+    rust_opds::run()?;
+    Ok(())
 }
