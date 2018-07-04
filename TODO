@@ -7,8 +7,8 @@ Functionality:
   - unread
   - publisher/title
   - path
-- serve comics 
 - serve covers
+- allow configuratio
 - track read status
 - create auth / users
 - track read status per person

@@ -9,7 +9,10 @@ extern crate lazy_static;
 extern crate log;
 extern crate r2d2;
 extern crate r2d2_sqlite;
+extern crate regex;
 extern crate rusqlite;
+extern crate tokio_fs;
+extern crate tokio_io;
 extern crate unrar;
 extern crate url;
 extern crate uuid;
@@ -118,9 +121,11 @@ impl ComicInfo {
     }
 
     pub fn get_filename(&self) -> String {
-        Path::new(&self.filepath).file_name().map(|s| s.to_string_lossy().into()).unwrap_or_default()
+        Path::new(&self.filepath)
+            .file_name()
+            .map(|s| s.to_string_lossy().into())
+            .unwrap_or_default()
     }
-
 }
 
 pub fn run() -> Result<(), Error> {

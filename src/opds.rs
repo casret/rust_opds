@@ -173,7 +173,7 @@ pub fn get_navigation_feed() -> Result<String, Error> {
 }
 
 fn make_entry(entry: &ComicInfo) -> OpdsEntry {
-    let mut authors:Vec<&str> = Vec::new();
+    let mut authors: Vec<&str> = Vec::new();
     if let Some(ref writer) = entry.writer {
         authors.push(&writer);
     }
@@ -190,13 +190,13 @@ fn make_entry(entry: &ComicInfo) -> OpdsEntry {
         authors.push(&cover_artist);
     }
 
-    let url_prefix = format!("/comics/{}", entry.id.unwrap_or(0));
-    let filename:String = byte_serialize(entry.get_filename().as_bytes()).collect();
+    let url_prefix = format!("/comic/{}", entry.id.unwrap_or(0));
+    let filename: String = byte_serialize(entry.get_filename().as_bytes()).collect();
     let links = vec![
         OpdsLink {
             link_type: LinkType::Jpeg,
             rel: Rel::Image,
-            url: Cow::Owned(format!("{}/cover.jpg", url_prefix)),
+            url: Cow::Owned(format!("/cover/{}/cover.jpg", url_prefix)),
         },
         OpdsLink {
             link_type: LinkType::Jpeg,
@@ -222,11 +222,7 @@ fn make_entry(entry: &ComicInfo) -> OpdsEntry {
             entry.volume.unwrap_or(1),
             entry.issue_number.unwrap_or(1)
         )),
-        content: Cow::Owned(format!(
-            "{} {}",
-            title,
-            summary
-        )),
+        content: Cow::Owned(format!("{} {}", title, summary)),
         authors,
         links,
     }
