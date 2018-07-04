@@ -1,9 +1,12 @@
+use super::ComicInfo;
 use chrono::prelude::*;
 use failure::Error;
+use std::borrow::Cow;
 use std::io::prelude::*;
+use url::form_urlencoded::byte_serialize;
 use uuid::Uuid;
 use xml::name::Name;
-use xml::writer::{EmitterConfig, EventWriter, XmlEvent};
+use xml::writer::{EventWriter, XmlEvent};
 
 #[derive(Debug)]
 pub enum Rel {
@@ -11,6 +14,9 @@ pub enum Rel {
     Start,
     Subsection,
     SortNew,
+    Image,
+    Thumbnail,
+    Acquisition,
 }
 
 impl Rel {
@@ -20,6 +26,9 @@ impl Rel {
             Rel::Start => "start",
             Rel::Subsection => "subsection",
             Rel::SortNew => "http://opds-spec.org/sort/new",
+            Rel::Image => "http://opds-spec.org/image",
+            Rel::Thumbnail => "http://opds-spec.org/image/thumbnail",
+            Rel::Acquisition => "http://opds-spec.org/acquisition",
         }
     }
 }
@@ -29,49 +38,49 @@ pub enum LinkType {
     Jpeg,
     Acquisition,
     Navigation,
+    OctetStream,
 }
 
 impl LinkType {
     pub fn as_str(&self) -> &'static str {
         match self {
             LinkType::Jpeg => "image/jpeg",
-            LinkType::Acquisition => {
-                "application/atom+xml; profile=opds-catalog; kind=acquisition"
-            }
+            LinkType::Acquisition => "application/atom+xml; profile=opds-catalog; kind=acquisition",
             LinkType::Navigation => "application/atom+xml; profile=opds-catalog; kind=navigation",
+            LinkType::OctetStream => "application/octet-stream",
         }
     }
 }
 
 #[derive(Debug)]
-struct OpdsLink {
+struct OpdsLink<'a> {
     link_type: LinkType,
     rel: Rel,
-    url: String,
+    url: Cow<'a, str>,
 }
 
 #[derive(Debug)]
-struct OpdsEntry {
-    id: String,
+struct OpdsEntry<'a> {
+    id: Cow<'a, str>,
     updated: DateTime<Utc>,
-    title: String,
-    content: String,
-    authors: Vec<String>,
-    links: Vec<OpdsLink>,
+    title: Cow<'a, str>,
+    content: Cow<'a, str>,
+    authors: Vec<&'a str>,
+    links: Vec<OpdsLink<'a>>,
 }
 
-impl OpdsEntry {
+impl<'a> OpdsEntry<'a> {
     fn new(
-        title: String,
-        content: String,
-        authors: Vec<String>,
-        links: Vec<OpdsLink>,
-    ) -> OpdsEntry {
+        title: &'a str,
+        content: &'a str,
+        authors: Vec<&'a str>,
+        links: Vec<OpdsLink<'a>>,
+    ) -> OpdsEntry<'a> {
         OpdsEntry {
-            id: get_uuid_id(),
+            id: Cow::Owned(get_uuid_id()),
             updated: Utc::now(),
-            title,
-            content,
+            title: Cow::Borrowed(title),
+            content: Cow::Borrowed(content),
             authors,
             links,
         }
@@ -79,12 +88,41 @@ impl OpdsEntry {
 }
 
 #[derive(Debug)]
-struct OpdsFeed {
-    id: String,
-    title: String,
-    entries: Vec<OpdsEntry>,
-    links: Vec<OpdsLink>,
+struct OpdsFeed<'a> {
+    id: &'a str,
+    title: &'a str,
+    entries: Vec<OpdsEntry<'a>>,
+    links: Vec<OpdsLink<'a>>,
     updated: DateTime<Utc>,
+}
+
+pub fn make_acquisiton_feed(
+    url: &str,
+    title: &str,
+    entries: &Vec<ComicInfo>,
+) -> Result<String, Error> {
+    let links = vec![
+        OpdsLink {
+            link_type: LinkType::Acquisition,
+            rel: Rel::RelSelf,
+            url: Cow::Borrowed(url),
+        },
+        OpdsLink {
+            link_type: LinkType::Navigation,
+            rel: Rel::Start,
+            url: Cow::Borrowed("/"),
+        },
+    ];
+    let entries = entries.into_iter().map(|e| make_entry(e)).collect();
+
+    let feed = OpdsFeed {
+        id: &get_uuid_id(),
+        title,
+        updated: Utc::now(),
+        links,
+        entries,
+    };
+    write_opds(feed)
 }
 
 pub fn get_navigation_feed() -> Result<String, Error> {
@@ -92,46 +130,106 @@ pub fn get_navigation_feed() -> Result<String, Error> {
         OpdsLink {
             link_type: LinkType::Navigation,
             rel: Rel::RelSelf,
-            url: "/".to_owned(),
+            url: Cow::Borrowed("/"),
         },
         OpdsLink {
             link_type: LinkType::Navigation,
             rel: Rel::Start,
-            url: "/".to_owned(),
+            url: Cow::Borrowed("/"),
         },
     ];
 
     let entries = vec![
         OpdsEntry::new(
-            "All comics".to_owned(),
-            "All comics as a flat list".to_owned(),
+            "All comics",
+            "All comics as a flat list",
             Vec::new(),
             vec![OpdsLink {
                 link_type: LinkType::Acquisition,
                 rel: Rel::Subsection,
-                url: "/all".to_owned(),
+                url: Cow::Borrowed("/all"),
             }],
         ),
         OpdsEntry::new(
-            "Unread comics".to_owned(),
-            "All unread comics sorted by recency".to_owned(),
+            "Unread comics",
+            "All unread comics sorted by recency",
             Vec::new(),
             vec![OpdsLink {
                 link_type: LinkType::Acquisition,
                 rel: Rel::SortNew,
-                url: "/unread".to_owned(),
+                url: Cow::Borrowed("/unread"),
             }],
         ),
     ];
 
     let feed = OpdsFeed {
-        id: get_uuid_id(),
-        title: "Rust OPDS".to_owned(),
+        id: &get_uuid_id(),
+        title: "Rust OPDS",
         updated: Utc::now(),
-        links: links,
-        entries: entries,
+        links,
+        entries,
     };
     write_opds(feed)
+}
+
+fn make_entry<'a>(entry: &'a ComicInfo) -> OpdsEntry<'a> {
+    let mut authors:Vec<&str> = Vec::new();
+    if let Some(ref writer) = entry.writer {
+        authors.push(&writer);
+    }
+    if let Some(ref penciller) = entry.penciller {
+        authors.push(&penciller);
+    }
+    if let Some(ref inker) = entry.inker {
+        authors.push(&inker);
+    }
+    if let Some(ref colorist) = entry.colorist {
+        authors.push(&colorist);
+    }
+    if let Some(ref cover_artist) = entry.cover_artist {
+        authors.push(&cover_artist);
+    }
+
+    let url_prefix = format!("/comics/{}", entry.id.unwrap_or(0));
+    let filename:String = byte_serialize(entry.get_filename().as_bytes()).collect();
+    let links = vec![
+        OpdsLink {
+            link_type: LinkType::Jpeg,
+            rel: Rel::Image,
+            url: Cow::Owned(format!("{}/cover.jpg", url_prefix)),
+        },
+        OpdsLink {
+            link_type: LinkType::Jpeg,
+            rel: Rel::Thumbnail,
+            url: Cow::Owned(format!("{}/cover.jpg", url_prefix)),
+        },
+        OpdsLink {
+            link_type: LinkType::OctetStream,
+            rel: Rel::Acquisition,
+            url: Cow::Owned(format!("{}/download/{}", url_prefix, filename)),
+        },
+    ];
+
+    let series = entry.series.as_ref().map_or("", |x| &**x);
+    let title = entry.title.as_ref().map_or("", |x| &**x);
+    let summary = entry.summary.as_ref().map_or("", |x| &**x);
+    OpdsEntry {
+        id: Cow::Owned(entry.id.unwrap_or(0).to_string()),
+        updated: entry.modified_at.with_timezone(&Utc),
+        title: Cow::Owned(format!(
+            "{} {} {}",
+            series,
+            entry.volume.unwrap_or(1),
+            entry.issue_number.unwrap_or(1)
+        )),
+        content: Cow::Owned(format!(
+            "{} {}",
+            title,
+            summary
+        )),
+        authors,
+        links,
+    }
 }
 
 fn get_uuid_id() -> String {
@@ -160,7 +258,11 @@ fn write_links<W: Write>(writer: &mut EventWriter<W>, links: &Vec<OpdsLink>) -> 
 fn write_opds(opds: OpdsFeed) -> Result<String, Error> {
     let raw = Vec::new();
     let mut writer = EventWriter::new(raw);
-    writer.write(XmlEvent::start_element("feed").default_ns("http://www.w3.org/2005/Atom").ns("opds", "http://opds-spec.org/2010/catalog"))?;
+    writer.write(
+        XmlEvent::start_element("feed")
+            .default_ns("http://www.w3.org/2005/Atom")
+            .ns("opds", "http://opds-spec.org/2010/catalog"),
+    )?;
 
     writer.write(XmlEvent::start_element("id"))?;
     writer.write(XmlEvent::characters(&opds.id))?;
@@ -191,10 +293,7 @@ fn write_opds(opds: OpdsFeed) -> Result<String, Error> {
         writer.write(XmlEvent::characters(&entry.updated.to_rfc3339()))?;
         writer.write(XmlEvent::end_element())?;
 
-        writer.write(
-            XmlEvent::start_element("content")
-                .attr("type", "html")
-                )?;
+        writer.write(XmlEvent::start_element("content").attr("type", "html"))?;
         writer.write(XmlEvent::characters(&entry.content))?;
         writer.write(XmlEvent::end_element())?;
 

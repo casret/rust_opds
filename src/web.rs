@@ -17,6 +17,12 @@ fn serve_opds(
             let body = Body::from(opds::get_navigation_feed().unwrap());
             Box::new(future::ok(Response::new(body)))
         }
+        (&Method::GET, "/all") => {
+            let entries = db.get_all().unwrap();
+            let body =
+                Body::from(opds::make_acquisiton_feed("/all", "All Comics", &entries).unwrap());
+            Box::new(future::ok(Response::new(body)))
+        }
         _ => {
             let body = Body::from("Not Found");
             Box::new(future::ok(

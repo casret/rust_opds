@@ -11,15 +11,16 @@ extern crate r2d2;
 extern crate r2d2_sqlite;
 extern crate rusqlite;
 extern crate unrar;
+extern crate url;
 extern crate uuid;
 extern crate walkdir;
 extern crate xml;
 extern crate zip;
 
-
 use chrono::prelude::*;
 use failure::Error;
 use std::io::prelude::*;
+use std::path::Path;
 use std::sync::Arc;
 use walkdir::{DirEntry, WalkDir};
 use xml::reader::{EventReader, XmlEvent};
@@ -29,6 +30,7 @@ mod opds;
 pub mod web;
 
 pub struct ComicInfo {
+    pub id: Option<i64>,
     pub comic_info: Option<String>,
     pub filepath: String,
     pub modified_at: DateTime<Local>,
@@ -52,6 +54,7 @@ pub struct ComicInfo {
 impl ComicInfo {
     pub fn new(entry: &DirEntry, comic_info: Option<String>) -> Result<ComicInfo, Error> {
         let mut info = ComicInfo {
+            id: None, // You don't get an Id until you are in the DB
             comic_info,
             filepath: entry.path().to_string_lossy().to_string(),
             modified_at: entry_modified(entry).unwrap_or(Local::now()),
@@ -113,6 +116,11 @@ impl ComicInfo {
         }
         Ok(info)
     }
+
+    pub fn get_filename(&self) -> String {
+        Path::new(&self.filepath).file_name().map(|s| s.to_string_lossy().into()).unwrap_or("".to_owned())
+    }
+
 }
 
 pub fn run() -> Result<(), Error> {
