@@ -1,9 +1,9 @@
 use super::ComicInfo;
 use chrono::prelude::*;
 use failure::Error;
-use walkdir::DirEntry;
-use r2d2_sqlite::SqliteConnectionManager;
 use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
+use walkdir::DirEntry;
 
 #[derive(Clone)]
 pub struct DB {
@@ -14,12 +14,10 @@ impl DB {
     pub fn new(db: &str) -> Result<DB, Error> {
         let manager = SqliteConnectionManager::file(db);
         let pool = ::r2d2::Pool::new(manager)?;
-        Ok(DB {
-            pool
-        })
+        Ok(DB { pool })
     }
 
-    pub fn store_comic(&mut self, info: &ComicInfo) -> Result<(), Error> {
+    pub fn store_comic(&self, info: &ComicInfo) -> Result<(), Error> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare_cached("replace into issue(filepath, modified_at, comicvine_id,
             series, issue_number, volume, title, summary, released_at, writer, penciller,
@@ -45,8 +43,8 @@ impl DB {
         ])?;
 
         if let Some(ref comic_info) = info.comic_info {
-            stmt = conn
-                .prepare_cached("replace into issue_fts(issue_id, comicinfo) values (?1, ?2)")?;
+            stmt =
+                conn.prepare_cached("replace into issue_fts(issue_id, comicinfo) values (?1, ?2)")?;
             stmt.insert(&[&issue_id, comic_info])?;
         }
         Ok(())
@@ -54,7 +52,7 @@ impl DB {
 
     // Basically the only time we shouldn't update is if we know
     // that path hasn't be modified since the last mod_time
-    pub fn should_update(&mut self, entry: &DirEntry) -> bool {
+    pub fn should_update(&self, entry: &DirEntry) -> bool {
         let path: String = entry.path().to_string_lossy().into();
         let modified = match super::entry_modified(entry) {
             Some(modified) => modified,
@@ -69,8 +67,7 @@ impl DB {
                     let modified_at: DateTime<Local> = row.get(0);
                     modified_at < modified
                 },
-                )
-                .unwrap_or(true)
+            ).unwrap_or(true)
         } else {
             true
         }

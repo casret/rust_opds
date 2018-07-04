@@ -1,25 +1,31 @@
 extern crate chrono;
-extern crate hyper;
+extern crate env_logger;
 extern crate failure;
 extern crate futures;
+extern crate hyper;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate log;
 extern crate r2d2;
 extern crate r2d2_sqlite;
 extern crate rusqlite;
 extern crate unrar;
+extern crate uuid;
 extern crate walkdir;
 extern crate xml;
 extern crate zip;
 
-#[macro_use] extern crate log;
-extern crate env_logger;
 
 use chrono::prelude::*;
 use failure::Error;
 use std::io::prelude::*;
+use std::sync::Arc;
 use walkdir::{DirEntry, WalkDir};
 use xml::reader::{EventReader, XmlEvent};
 
 mod db;
+mod opds;
 pub mod web;
 
 pub struct ComicInfo {
@@ -110,14 +116,14 @@ impl ComicInfo {
 }
 
 pub fn run() -> Result<(), Error> {
-    let mut db = db::DB::new("comics.db")?;
-    scan_dir("/Users/casret/comics", &mut db)?;
+    let db = Arc::new(db::DB::new("comics.db")?);
+    scan_dir("/Users/casret/comics", Arc::clone(&db))?;
     let addr = ([127, 0, 0, 1], 3000);
-    web::start_web_service("comics.db", addr.into())?;
+    web::start_web_service(Arc::clone(&db), addr.into())?;
     Ok(())
 }
 
-fn scan_dir(dir: &str, db: &mut db::DB) -> Result<(), Error> {
+fn scan_dir(dir: &str, db: Arc<db::DB>) -> Result<(), Error> {
     for entry in WalkDir::new(dir)
         .into_iter()
         .filter_map(|e| e.ok())
