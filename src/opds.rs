@@ -99,7 +99,7 @@ struct OpdsFeed<'a> {
 pub fn make_acquisiton_feed(
     url: &str,
     title: &str,
-    entries: &Vec<ComicInfo>,
+    entries: &[ComicInfo],
 ) -> Result<String, Error> {
     let links = vec![
         OpdsLink {
@@ -122,7 +122,7 @@ pub fn make_acquisiton_feed(
         links,
         entries,
     };
-    write_opds(feed)
+    write_opds(&feed)
 }
 
 pub fn get_navigation_feed() -> Result<String, Error> {
@@ -169,10 +169,10 @@ pub fn get_navigation_feed() -> Result<String, Error> {
         links,
         entries,
     };
-    write_opds(feed)
+    write_opds(&feed)
 }
 
-fn make_entry<'a>(entry: &'a ComicInfo) -> OpdsEntry<'a> {
+fn make_entry(entry: &ComicInfo) -> OpdsEntry {
     let mut authors:Vec<&str> = Vec::new();
     if let Some(ref writer) = entry.writer {
         authors.push(&writer);
@@ -236,7 +236,7 @@ fn get_uuid_id() -> String {
     format!("urn:uuid:{}", Uuid::new_v4())
 }
 
-fn write_links<W: Write>(writer: &mut EventWriter<W>, links: &Vec<OpdsLink>) -> Result<(), Error> {
+fn write_links<W: Write>(writer: &mut EventWriter<W>, links: &[OpdsLink]) -> Result<(), Error> {
     lazy_static! {
         static ref TYPE_NAME: Name<'static> = Name::local("type");
         static ref REL_NAME: Name<'static> = Name::local("rel");
@@ -255,7 +255,7 @@ fn write_links<W: Write>(writer: &mut EventWriter<W>, links: &Vec<OpdsLink>) -> 
     Ok(())
 }
 
-fn write_opds(opds: OpdsFeed) -> Result<String, Error> {
+fn write_opds(opds: &OpdsFeed) -> Result<String, Error> {
     let raw = Vec::new();
     let mut writer = EventWriter::new(raw);
     writer.write(
@@ -278,7 +278,7 @@ fn write_opds(opds: OpdsFeed) -> Result<String, Error> {
 
     write_links(&mut writer, &opds.links)?;
 
-    for entry in opds.entries.iter() {
+    for entry in &opds.entries {
         writer.write(XmlEvent::start_element("entry"))?;
 
         writer.write(XmlEvent::start_element("title"))?;
@@ -298,7 +298,7 @@ fn write_opds(opds: OpdsFeed) -> Result<String, Error> {
         writer.write(XmlEvent::end_element())?;
 
         writer.write(XmlEvent::start_element("author"))?;
-        for author in entry.authors.iter() {
+        for author in &entry.authors {
             writer.write(XmlEvent::start_element("name"))?;
             writer.write(XmlEvent::characters(&author))?;
             writer.write(XmlEvent::end_element())?;

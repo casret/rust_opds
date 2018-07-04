@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 // TODO: figure out Stream
 fn serve_opds(
-    req: Request<Body>,
+    req: &Request<Body>,
     db: &DB,
 ) -> Box<Future<Item = Response<Body>, Error = ::hyper::Error> + Send> {
     match (req.method(), req.uri().path()) {
@@ -38,7 +38,7 @@ fn serve_opds(
 pub fn start_web_service(db: Arc<DB>, addr: SocketAddr) -> Result<(), Error> {
     let new_svc = move || {
         let db = db.clone();
-        service_fn(move |req| serve_opds(req, &db))
+        service_fn(move |req| serve_opds(&req, &db))
     };
 
     let server = Server::bind(&addr)

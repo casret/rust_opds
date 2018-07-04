@@ -57,7 +57,7 @@ impl ComicInfo {
             id: None, // You don't get an Id until you are in the DB
             comic_info,
             filepath: entry.path().to_string_lossy().to_string(),
-            modified_at: entry_modified(entry).unwrap_or(Local::now()),
+            modified_at: entry_modified(entry).unwrap_or_else(Local::now),
             comicvine_id: None,
             comicvine_url: None,
             series: None,
@@ -118,20 +118,20 @@ impl ComicInfo {
     }
 
     pub fn get_filename(&self) -> String {
-        Path::new(&self.filepath).file_name().map(|s| s.to_string_lossy().into()).unwrap_or("".to_owned())
+        Path::new(&self.filepath).file_name().map(|s| s.to_string_lossy().into()).unwrap_or_default()
     }
 
 }
 
 pub fn run() -> Result<(), Error> {
     let db = Arc::new(db::DB::new("comics.db")?);
-    scan_dir("/Users/casret/comics", Arc::clone(&db))?;
+    scan_dir("/Users/casret/comics", &db)?;
     let addr = ([127, 0, 0, 1], 3000);
     web::start_web_service(Arc::clone(&db), addr.into())?;
     Ok(())
 }
 
-fn scan_dir(dir: &str, db: Arc<db::DB>) -> Result<(), Error> {
+fn scan_dir(dir: &str, db: &Arc<db::DB>) -> Result<(), Error> {
     for entry in WalkDir::new(dir)
         .into_iter()
         .filter_map(|e| e.ok())
