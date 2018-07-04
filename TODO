@@ -1,17 +1,17 @@
 My TODOlist for beta (roughly in priorty order)
 
 Functionality:
-- store size and modtime
-- import comicrack Db
 - serve OPDS feeds based on db
 - serve comics based on OPDS feed
 - track read status
 - create auth / users
 - track read status per person
-- remove old paths (probably need a seperate binary since we don't want to wipe DB by mistake)
+- store size and modtime
+- import comicrack Db
+- prune old paths (probably need a seperate binary since we don't want to wipe DB by mistake)
 - transcode comics to webp (70 quality seems to be sweet spot)
 
 
 Cleanup type tasks
 - tests!!
-- use Default in DB
+- clippy
