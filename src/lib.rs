@@ -143,7 +143,7 @@ fn scan_dir(dir: &str, db: &Arc<db::DB>) -> Result<(), Error> {
         .filter(|e| e.file_type().is_file())
     {
         if !db.should_update(&entry) {
-            println!("Skipping unchanged {}", entry.path().display());
+            info!("Skipping unchanged {}", entry.path().display());
             continue;
         }
 
@@ -151,21 +151,23 @@ fn scan_dir(dir: &str, db: &Arc<db::DB>) -> Result<(), Error> {
             Some(name) if name.ends_with("cbr") => process_rar(&entry),
             Some(name) if name.ends_with("cbz") => process_zip(&entry),
             _ => {
-                println!("Skipping {}", entry.path().display());
+                info!("Skipping {}", entry.path().display());
                 Ok(None)
             }
-        }?;
-        let info = ComicInfo::new(&entry, comic_info)?;
-        db.store_comic(&info)?;
+        };
+        match comic_info {
+            Ok(comic_info) => db.store_comic(&ComicInfo::new(&entry, comic_info)?)?,
+            Err(e) => error!("Skipping {}: {}", entry.path().display(), e),
+        }
     }
     Ok(())
 }
 
 fn process_rar(file: &DirEntry) -> Result<Option<String>, Error> {
-    println!("Processing {}", file.path().display());
+    info!("Processing {}", file.path().display());
     for entry in unrar::Archive::new(file.path().to_string_lossy().into())
         .list()
-        .unwrap()
+        .unwrap() // TODO: why isn't this a std::error
     {
         if let Ok(entry) = entry {
             if entry.filename != "ComicInfo.xml" {
@@ -178,9 +180,9 @@ fn process_rar(file: &DirEntry) -> Result<Option<String>, Error> {
 }
 
 fn process_zip(entry: &DirEntry) -> Result<Option<String>, Error> {
-    println!("Processing {}", entry.path().display());
-    let zipfile = std::fs::File::open(&entry.path()).unwrap();
-    let mut archive = zip::ZipArchive::new(zipfile).unwrap();
+    info!("Processing {}", entry.path().display());
+    let zipfile = std::fs::File::open(&entry.path())?;
+    let mut archive = zip::ZipArchive::new(zipfile)?;
 
     let mut file = match archive.by_name("ComicInfo.xml") {
         Ok(file) => file,

@@ -196,7 +196,7 @@ fn make_entry(entry: &ComicInfo) -> OpdsEntry {
         OpdsLink {
             link_type: LinkType::Jpeg,
             rel: Rel::Image,
-            url: Cow::Owned(format!("/cover/{}/cover.jpg", url_prefix)),
+            url: Cow::Owned(format!("/cover/{}/cover.jpg", entry.id.unwrap_or(0))),
         },
         OpdsLink {
             link_type: LinkType::Jpeg,

@@ -1,6 +1,7 @@
 My TODOlist for beta (roughly in priorty order)
 
 Functionality:
+- create empty db
 - serve OPDS feeds based on db
   * all
   - recent
