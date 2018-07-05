@@ -25,6 +25,7 @@ use chrono::prelude::*;
 use failure::Error;
 use std::io::prelude::*;
 use std::path::Path;
+use std::str;
 use std::sync::Arc;
 use walkdir::{DirEntry, WalkDir};
 use xml::reader::{EventReader, XmlEvent};
@@ -165,19 +166,16 @@ fn scan_dir(dir: &str, db: &Arc<db::DB>) -> Result<(), Error> {
 }
 
 fn process_rar(file: &DirEntry) -> Result<Option<String>, Error> {
+    use unrar::error::{Code, UnrarError};
     info!("Processing {}", file.path().display());
-    for entry in unrar::Archive::new(file.path().to_string_lossy().into())
-        .list()
-        .map_err(|e| format_err!("{}", e))?
-    {
-        if let Ok(entry) = entry {
-            if entry.filename != "ComicInfo.xml" {
-                continue;
-            }
-            // TODO: extract and send
-        }
+    match unrar::Archive::new(file.path().to_string_lossy().into()).read_bytes("ComicInfo.xml") {
+        Ok(bytes) => Ok(Some(str::from_utf8(&bytes)?.to_owned())),
+        Err(UnrarError {
+            code: Code::EndArchive,
+            ..
+        }) => Ok(None),
+        Err(e) => Err(format_err!("{}", e)),
     }
-    Ok(None)
 }
 
 fn process_zip(entry: &DirEntry) -> Result<Option<String>, Error> {

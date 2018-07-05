@@ -17,7 +17,7 @@ regex = "1"
 rusqlite = { version = "0.13.0", features = ["chrono"] }
 tokio-fs = "0.1.1"
 tokio-io = "0.1.7"
-unrar ={ path = "../../git/unrar.rs"  }
+unrar ={ git = "https://github.com/casret/unrar.rs", rev = "daac3be" }
 uuid = { version = "0.6", features = ["v4"] }
 url = "1.7.0"
 walkdir = "2"

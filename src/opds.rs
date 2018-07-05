@@ -3,7 +3,7 @@ use chrono::prelude::*;
 use failure::Error;
 use std::borrow::Cow;
 use std::io::prelude::*;
-use url::form_urlencoded::byte_serialize;
+use url::percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 use uuid::Uuid;
 use xml::name::Name;
 use xml::writer::{EventWriter, XmlEvent};
@@ -191,7 +191,7 @@ fn make_entry(entry: &ComicInfo) -> OpdsEntry {
     }
 
     let url_prefix = format!("/comic/{}", entry.id.unwrap_or(0));
-    let filename: String = byte_serialize(entry.get_filename().as_bytes()).collect();
+    let filename: String = utf8_percent_encode(&entry.get_filename(), DEFAULT_ENCODE_SET).to_string();
     let links = vec![
         OpdsLink {
             link_type: LinkType::Jpeg,
