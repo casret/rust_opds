@@ -1,5 +1,6 @@
 extern crate chrono;
 extern crate env_logger;
+#[macro_use]
 extern crate failure;
 extern crate futures;
 extern crate hyper;
@@ -167,7 +168,7 @@ fn process_rar(file: &DirEntry) -> Result<Option<String>, Error> {
     info!("Processing {}", file.path().display());
     for entry in unrar::Archive::new(file.path().to_string_lossy().into())
         .list()
-        .unwrap() // TODO: why isn't this a std::error
+        .map_err(|e| format_err!("{}", e))?
     {
         if let Ok(entry) = entry {
             if entry.filename != "ComicInfo.xml" {
