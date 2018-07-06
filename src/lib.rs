@@ -154,7 +154,7 @@ fn scan_dir(dir: &str, db: &Arc<db::DB>) -> Result<(), Error> {
             Some(name) if name.ends_with("cbz") => process_zip(&entry),
             _ => {
                 info!("Skipping {}", entry.path().display());
-                Ok(None)
+                continue;
             }
         };
         match comic_info {

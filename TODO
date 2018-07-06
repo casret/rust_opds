@@ -9,7 +9,9 @@ Functionality:
   - publisher/title
   - path
 - serve covers
-- allow configuratio
+  - probably have to tag cover candidates during scan
+- allow configuration
+- scan in a different thread
 - track read status
 - create auth / users
 - track read status per person
