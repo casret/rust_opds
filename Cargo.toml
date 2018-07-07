@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["Giao Phan <casret@pobox.com>"]
 
 [dependencies]
+argon2rs = "0.2.5"
+base64 = "0.9.2"
 chrono = "0.4.4"
 env_logger = "0.5.10"
 failure = "0.1.1"
@@ -13,6 +15,7 @@ lazy_static = "1.0.1"
 log = "0.4"
 r2d2 = "0.8.2"
 r2d2_sqlite = "0.5.0"
+rand = "0.5.3"
 regex = "1"
 rusqlite = { version = "0.13.0", features = ["chrono"] }
 tokio-fs = "0.1.1"

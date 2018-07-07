@@ -15,8 +15,23 @@ create table issue (
   colorist TEXT,
   cover_artist TEXT,
   publisher TEXT,
-  page_count INTEGER
+  page_count INTEGER,
+  cover_page TEXT
 );
+
+create table user (
+  username TEXT PRIMARY KEY,
+  salt blob,
+  ciphertext blob
+);
+
+create table read (
+  user_id INTEGER NOT NULL,
+  issue_id INTEGER NOT NULL,
+  read_at TEXT NOT NULL
+);
+
+create unique index read_user_issue on read(user_id, issue_id);
 
 create index issue_modified_at on issue(modified_at);
 create index issue_publisher_series on issue(publisher, series);

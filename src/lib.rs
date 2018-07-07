@@ -1,3 +1,5 @@
+extern crate argon2rs;
+extern crate base64;
 extern crate chrono;
 extern crate env_logger;
 #[macro_use]
@@ -10,6 +12,7 @@ extern crate lazy_static;
 extern crate log;
 extern crate r2d2;
 extern crate r2d2_sqlite;
+extern crate rand;
 extern crate regex;
 extern crate rusqlite;
 extern crate tokio_fs;

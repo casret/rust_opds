@@ -151,12 +151,22 @@ pub fn get_navigation_feed() -> Result<String, Error> {
             }],
         ),
         OpdsEntry::new(
-            "Unread comics",
-            "All unread comics sorted by recency",
+            "Recent comics",
+            "All comics sorted by recency",
             Vec::new(),
             vec![OpdsLink {
                 link_type: LinkType::Acquisition,
                 rel: Rel::SortNew,
+                url: Cow::Borrowed("/recent"),
+            }],
+        ),
+        OpdsEntry::new(
+            "Unread comics",
+            "All unread comics sorted by published date",
+            Vec::new(),
+            vec![OpdsLink {
+                link_type: LinkType::Acquisition,
+                rel: Rel::Subsection,
                 url: Cow::Borrowed("/unread"),
             }],
         ),
@@ -191,7 +201,8 @@ fn make_entry(entry: &ComicInfo) -> OpdsEntry {
     }
 
     let url_prefix = format!("/comic/{}", entry.id.unwrap_or(0));
-    let filename: String = utf8_percent_encode(&entry.get_filename(), DEFAULT_ENCODE_SET).to_string();
+    let filename: String =
+        utf8_percent_encode(&entry.get_filename(), DEFAULT_ENCODE_SET).to_string();
     let links = vec![
         OpdsLink {
             link_type: LinkType::Jpeg,
@@ -201,7 +212,7 @@ fn make_entry(entry: &ComicInfo) -> OpdsEntry {
         OpdsLink {
             link_type: LinkType::Jpeg,
             rel: Rel::Thumbnail,
-            url: Cow::Owned(format!("{}/cover.jpg", url_prefix)),
+            url: Cow::Owned(format!("/cover/{}/cover.jpg", entry.id.unwrap_or(0))),
         },
         OpdsLink {
             link_type: LinkType::OctetStream,
@@ -217,7 +228,7 @@ fn make_entry(entry: &ComicInfo) -> OpdsEntry {
         id: Cow::Owned(entry.id.unwrap_or(0).to_string()),
         updated: entry.modified_at.with_timezone(&Utc),
         title: Cow::Owned(format!(
-            "{} {} {}",
+            "{} v{} {}",
             series,
             entry.volume.unwrap_or(1),
             entry.issue_number.unwrap_or(1)

@@ -2,6 +2,7 @@ use super::db::DB;
 use super::opds;
 use failure::Error;
 use futures::{future, Future, Stream};
+use hyper::header;
 use hyper::service::service_fn;
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 use regex::Regex;
@@ -22,11 +23,58 @@ fn not_found() -> ResponseFuture {
     ))
 }
 
+fn unauthorized() -> ResponseFuture {
+    Box::new(future::ok(
+        Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header(header::WWW_AUTHENTICATE, r#"Basic realm="Rust OPDS""#)
+            .body("Please provide username and password.".into())
+            .unwrap(),
+    ))
+}
+
+fn parse_auth_header(auth: &str) -> Option<(String, String)> {
+    use base64::decode;
+    lazy_static! {
+        static ref AUTH_RE: Regex = Regex::new(r"Basic (.*)$").unwrap();
+    }
+    if let Some(caps) = AUTH_RE.captures(auth) {
+        let auth = caps.get(1).unwrap().as_str();
+        if let Ok(auth) = decode(auth) {
+            if let Ok(auth) = String::from_utf8(auth) {
+                let parts: Vec<&str> = auth.splitn(2, ':').collect();
+                return Some((parts[0].to_owned(), parts[1].to_owned()));
+            }
+        }
+    }
+    None
+}
+
 // TODO: figure out Stream
 fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
     lazy_static! {
         static ref COMIC_RE: Regex = Regex::new(r"/comic/(\d+)/").unwrap();
     }
+    let user_id = match req.headers().get(header::AUTHORIZATION) {
+        None => {
+            return unauthorized();
+        }
+        Some(auth) => {
+            if let Some((username, password)) = parse_auth_header(auth.to_str().unwrap_or_default())
+            {
+                match db.check_or_provision_user(&username, &password) {
+                    Ok(0) => return unauthorized(),
+                    Ok(user_id) => user_id,
+                    _ => return unauthorized(),
+                }
+            } else {
+                return unauthorized();
+            }
+        }
+    };
+
+    info!("Got user {}", user_id);
+
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/index.html") => {
             let body = Body::from(opds::get_navigation_feed().unwrap());
@@ -36,6 +84,13 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
             let entries = db.get_all().unwrap();
             let body =
                 Body::from(opds::make_acquisiton_feed("/all", "All Comics", &entries).unwrap());
+            Box::new(future::ok(Response::new(body)))
+        }
+        (&Method::GET, "/recent") => {
+            let entries = db.get_recent().unwrap();
+            let body = Body::from(
+                opds::make_acquisiton_feed("/recent", "Recent Comics", &entries).unwrap(),
+            );
             Box::new(future::ok(Response::new(body)))
         }
         (&Method::GET, path) if COMIC_RE.is_match(path) => {

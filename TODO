@@ -4,7 +4,7 @@ Functionality:
 - create empty db
 - serve OPDS feeds based on db
   * all
-  - recent
+  * recent
   - unread
   - publisher/title
   - path
@@ -12,8 +12,6 @@ Functionality:
   - probably have to tag cover candidates during scan
 - allow configuration
 - scan in a different thread
-- track read status
-- create auth / users
 - track read status per person
 - store size and modtime
 - make DB and xml generation async

@@ -86,10 +86,66 @@ impl DB {
         Ok(retval)
     }
 
+    pub fn get_recent(&self) -> Result<Vec<ComicInfo>, Error> {
+        let conn = self.pool.get()?;
+        let mut stmt =
+            conn.prepare_cached(&format!("{} order by released_at desc", SELECT_CLAUSE))?;
+        let iter = stmt.query_map(&[], row_to_entry)?;
+        let mut retval = Vec::new();
+        for comic in iter {
+            retval.push(comic?)
+        }
+        Ok(retval)
+    }
+
     pub fn get(&self, id: i64) -> Result<ComicInfo, Error> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare_cached(&format!("{} where rowid = ?", SELECT_CLAUSE))?;
         Ok(stmt.query_row(&[&id], row_to_entry)?)
+    }
+
+    /// either check if the password is correct or make a user with the password
+    /// if auth fails, return 0, otherwise the user_id
+    pub fn check_or_provision_user(&self, username: &str, password: &str) -> Result<i64, Error> {
+        use argon2rs::Argon2;
+        let a2 = Argon2::default(::argon2rs::Variant::Argon2i);
+        let conn = self.pool.get()?;
+
+        let mut stmt = conn.prepare_cached(
+            "select rowid, username, salt, ciphertext from user where username = ?",
+        )?;
+        let mut rows = stmt.query(&[&username])?;
+        if let Some(Ok(row)) = rows.next() {
+            let mut ciphertext = [0; 32];
+            let salt: Vec<u8> = row.get(2);
+            let db_cipher: Vec<u8> = row.get(3);
+            a2.hash(
+                &mut ciphertext,
+                password.as_bytes(),
+                salt.as_slice(),
+                &[],
+                &[],
+            );
+            if ciphertext.to_vec() == db_cipher {
+                Ok(row.get(0))
+            } else {
+                Ok(0)
+            }
+        } else {
+            use rand::os::OsRng;
+            use rand::RngCore;
+            let mut osrng = OsRng::new().unwrap(); // supposed to not really fail
+            let mut salt = [0; 32];
+            osrng.fill_bytes(&mut salt[..]);
+            let mut ciphertext = [0; 32];
+            a2.hash(&mut ciphertext, password.as_bytes(), &salt, &[], &[]);
+
+            let mut stmt = conn.prepare_cached(
+                "insert into user(username, salt, ciphertext) values (?, ?, ?)",
+            )?;
+            let user_id = stmt.insert(&[&username, &salt.to_vec(), &ciphertext.to_vec()])?;
+            Ok(user_id)
+        }
     }
 }
 
