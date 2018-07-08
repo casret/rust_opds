@@ -98,10 +98,31 @@ impl DB {
         Ok(retval)
     }
 
+    pub fn get_unread(&self, user_id: i64) -> Result<Vec<ComicInfo>, Error> {
+        let conn = self.pool.get()?;
+        let mut stmt =
+            conn.prepare_cached(
+                &format!("{} left join (select issue_id from read where user_id = ?) r on i.rowid = r.issue_id where r.issue_id is null order by released_at", SELECT_CLAUSE)
+                )?;
+        let iter = stmt.query_map(&[&user_id], row_to_entry)?;
+        let mut retval = Vec::new();
+        for comic in iter {
+            retval.push(comic?)
+        }
+        Ok(retval)
+    }
+
     pub fn get(&self, id: i64) -> Result<ComicInfo, Error> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare_cached(&format!("{} where rowid = ?", SELECT_CLAUSE))?;
         Ok(stmt.query_row(&[&id], row_to_entry)?)
+    }
+
+    pub fn mark_read(&self, issue_id: i64, user_id: i64) -> Result<i32, Error> {
+        let conn = self.pool.get()?;
+        let mut stmt =
+            conn.prepare_cached("replace into read(user_id, issue_id, read_at) values(?,?,?)")?;
+        Ok(stmt.execute(&[&user_id, &issue_id, &Local::now()])?)
     }
 
     /// either check if the password is correct or make a user with the password
@@ -149,7 +170,7 @@ impl DB {
     }
 }
 
-const SELECT_CLAUSE: &str = "select rowid, filepath, modified_at, comicvine_id, comicvine_url, series, issue_number, volume, title, summary, released_at, writer, penciller, inker, colorist, cover_artist, publisher, page_count from issue";
+const SELECT_CLAUSE: &str = "select i.rowid, i.filepath, i.modified_at, i.comicvine_id, i.comicvine_url, i.series, i.issue_number, i.volume, i.title, i.summary, i.released_at, i.writer, i.penciller, i.inker, i.colorist, i.cover_artist, i.publisher, i.page_count from issue i";
 
 fn row_to_entry(row: &Row) -> ComicInfo {
     ComicInfo {

@@ -93,9 +93,17 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
             );
             Box::new(future::ok(Response::new(body)))
         }
+        (&Method::GET, "/unread") => {
+            let entries = db.get_unread(user_id).unwrap();
+            let body = Body::from(
+                opds::make_acquisiton_feed("/unread", "Unread Comics", &entries).unwrap(),
+            );
+            Box::new(future::ok(Response::new(body)))
+        }
         (&Method::GET, path) if COMIC_RE.is_match(path) => {
             let id = COMIC_RE.captures(path).unwrap()[1].parse::<i64>().unwrap();
             let entry = db.get(id).unwrap();
+            db.mark_read(id, user_id).unwrap();
             simple_file_send(&entry.filepath)
         }
         _ => not_found(),

@@ -137,7 +137,7 @@ impl ComicInfo {
 pub fn run() -> Result<(), Error> {
     let db = Arc::new(db::DB::new("comics.db")?);
     let scan_db = Arc::clone(&db);
-    thread::spawn(move || scan_dir("/Users/casret/comics", &scan_db) );
+    thread::spawn(move || scan_dir("/Users/casret/comics", &scan_db));
     let addr = ([127, 0, 0, 1], 3000);
     web::start_web_service(Arc::clone(&db), addr.into())?;
     Ok(())

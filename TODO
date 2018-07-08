@@ -5,13 +5,12 @@ Functionality:
 - serve OPDS feeds based on db
   * all
   * recent
-  - unread
+  * unread
   - publisher/title
   - path
 - serve covers
   - probably have to tag cover candidates during scan
 - allow configuration
-- track read status per person
 - store size and modtime
 - make DB and xml generation async
 - import comicrack Db (probably a seperate binary since we'll do it once)
