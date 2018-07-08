@@ -11,7 +11,6 @@ Functionality:
 - serve covers
   - probably have to tag cover candidates during scan
 - allow configuration
-- scan in a different thread
 - track read status per person
 - store size and modtime
 - make DB and xml generation async

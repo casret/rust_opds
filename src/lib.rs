@@ -30,6 +30,7 @@ use std::io::prelude::*;
 use std::path::Path;
 use std::str;
 use std::sync::Arc;
+use std::thread;
 use walkdir::{DirEntry, WalkDir};
 use xml::reader::{EventReader, XmlEvent};
 
@@ -135,7 +136,8 @@ impl ComicInfo {
 
 pub fn run() -> Result<(), Error> {
     let db = Arc::new(db::DB::new("comics.db")?);
-    scan_dir("/Users/casret/comics", &db)?;
+    let scan_db = Arc::clone(&db);
+    thread::spawn(move || scan_dir("/Users/casret/comics", &scan_db) );
     let addr = ([127, 0, 0, 1], 3000);
     web::start_web_service(Arc::clone(&db), addr.into())?;
     Ok(())
