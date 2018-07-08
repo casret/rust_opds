@@ -13,6 +13,7 @@ Functionality:
 - allow configuration
 - store size and modtime
 - make DB and xml generation async
+- support streaming extension (http://vaemendis.net/opds-pse/)
 - import comicrack Db (probably a seperate binary since we'll do it once)
   - option to update the tag files
 - prune old paths (probably need a seperate binary since we don't want to wipe DB by mistake)
