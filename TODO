@@ -6,7 +6,7 @@ Functionality:
   * all
   * recent
   * unread
-  - publisher/title
+  * publisher/title
   - path
 - serve covers
   - probably have to tag cover candidates during scan
@@ -22,4 +22,3 @@ Functionality:
 
 Cleanup type tasks
 - tests!!
-- clippy

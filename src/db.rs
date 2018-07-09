@@ -112,6 +112,59 @@ impl DB {
         Ok(retval)
     }
 
+    pub fn get_publishers(&self) -> Result<Vec<String>, Error> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare_cached("select distinct publisher from issue")?;
+        let mut rows = stmt.query(&[])?;
+
+        let mut pubs = Vec::new();
+
+        while let Some(row) = rows.next() {
+            let publisher:Option<String> = row?.get(0);
+            pubs.push(publisher.unwrap_or_else(|| "None".to_owned()));
+        }
+        Ok(pubs)
+    }
+
+    pub fn get_series_for_publisher(&self, publisher: &str) -> Result<Vec<String>, Error> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare_cached("select distinct series from issue where publisher = ?")?;
+        let mut rows = stmt.query(&[&publisher])?;
+
+        let mut series = Vec::new();
+
+        while let Some(row) = rows.next() {
+            let publisher:Option<String> = row?.get(0);
+            series.push(publisher.unwrap_or_else(|| "None".to_owned()));
+        }
+        Ok(series)
+    }
+
+    pub fn get_for_publisher_series(&self, publisher: &str, series: &str) -> Result<Vec<ComicInfo>, Error> {
+        let conn = self.pool.get()?;
+        // The ? in the None case will pick up both the unlikely event that there really
+        // is a publisher named None as well as making the binds happy
+        let mut where_clause = match publisher {
+            "None" => "where publisher is null or publisher = ?".to_owned(),
+            _ => "where publisher = ?".to_owned(),
+        };
+
+        match series {
+            "None" => where_clause.push_str(" and series is null or series = ?"),
+            _ => where_clause.push_str("and series = ?"),
+        }
+        let mut stmt =
+            conn.prepare_cached(
+                &format!("{} {}", SELECT_CLAUSE, where_clause)
+                )?;
+        let iter = stmt.query_map(&[&publisher, &series], row_to_entry)?;
+        let mut retval = Vec::new();
+        for comic in iter {
+            retval.push(comic?)
+        }
+        Ok(retval)
+    }
+
     pub fn get(&self, id: i64) -> Result<ComicInfo, Error> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare_cached(&format!("{} where rowid = ?", SELECT_CLAUSE))?;

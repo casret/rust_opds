@@ -9,6 +9,7 @@ use regex::Regex;
 use std::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use url::percent_encoding::percent_decode;
 
 type ResponseFuture = Box<Future<Item = Response<Body>, Error = io::Error> + Send>;
 
@@ -54,6 +55,8 @@ fn parse_auth_header(auth: &str) -> Option<(String, String)> {
 fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
     lazy_static! {
         static ref COMIC_RE: Regex = Regex::new(r"/comic/(\d+)/").unwrap();
+        static ref PUBLISHER_RE: Regex = Regex::new(r"/publishers/(.*)").unwrap();
+        static ref SERIES_RE: Regex = Regex::new(r"/publishers/(.*)/(.*)").unwrap();
     }
     let user_id = match req.headers().get(header::AUTHORIZATION) {
         None => {
@@ -75,28 +78,56 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
 
     info!("Got user {}", user_id);
 
-    match (req.method(), req.uri().path()) {
+    // Why doesn't hyper do this for me?
+    let path: &str = &percent_decode(req.uri().path().as_bytes()).decode_utf8_lossy();
+    match (req.method(), path) {
         (&Method::GET, "/") | (&Method::GET, "/index.html") => {
-            let body = Body::from(opds::get_navigation_feed().unwrap());
+            let body = Body::from(opds::make_navigation_feed().unwrap());
             Box::new(future::ok(Response::new(body)))
         }
         (&Method::GET, "/all") => {
             let entries = db.get_all().unwrap();
             let body =
-                Body::from(opds::make_acquisiton_feed("/all", "All Comics", &entries).unwrap());
+                Body::from(opds::make_acquisition_feed("/all", "All Comics", &entries).unwrap());
             Box::new(future::ok(Response::new(body)))
         }
         (&Method::GET, "/recent") => {
             let entries = db.get_recent().unwrap();
             let body = Body::from(
-                opds::make_acquisiton_feed("/recent", "Recent Comics", &entries).unwrap(),
+                opds::make_acquisition_feed("/recent", "Recent Comics", &entries).unwrap(),
+            );
+            Box::new(future::ok(Response::new(body)))
+        }
+        (&Method::GET, path) if SERIES_RE.is_match(path) => {
+            let publisher = &SERIES_RE.captures(path).unwrap()[1];
+            let series = &SERIES_RE.captures(path).unwrap()[2];
+            let entries = db.get_for_publisher_series(&publisher, &series).unwrap();
+            let body = Body::from(
+                opds::make_acquisition_feed(path, 
+                                               series,
+                                               &entries).unwrap(),
+            );
+            Box::new(future::ok(Response::new(body)))
+        }
+        (&Method::GET, path) if PUBLISHER_RE.is_match(path) => {
+            let publisher = &PUBLISHER_RE.captures(path).unwrap()[1];
+            let mut entries = db.get_series_for_publisher(&publisher).unwrap();
+            let body = Body::from(
+                opds::make_subsection_feed(path, publisher, &mut entries).unwrap(),
+            );
+            Box::new(future::ok(Response::new(body)))
+        }
+        (&Method::GET, "/publishers") => {
+            let mut entries = db.get_publishers().unwrap();
+            let body = Body::from(
+                opds::make_subsection_feed("/publishers", "Comics by publisher", &mut entries).unwrap(),
             );
             Box::new(future::ok(Response::new(body)))
         }
         (&Method::GET, "/unread") => {
             let entries = db.get_unread(user_id).unwrap();
             let body = Body::from(
-                opds::make_acquisiton_feed("/unread", "Unread Comics", &entries).unwrap(),
+                opds::make_acquisition_feed("/unread", "Unread Comics", &entries).unwrap(),
             );
             Box::new(future::ok(Response::new(body)))
         }

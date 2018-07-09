@@ -96,7 +96,7 @@ struct OpdsFeed<'a> {
     updated: DateTime<Utc>,
 }
 
-pub fn make_acquisiton_feed(
+pub fn make_acquisition_feed(
     url: &str,
     title: &str,
     entries: &[ComicInfo],
@@ -125,7 +125,43 @@ pub fn make_acquisiton_feed(
     write_opds(&feed)
 }
 
-pub fn get_navigation_feed() -> Result<String, Error> {
+pub fn make_subsection_feed(url_prefix: &str, title: &str, subs: &mut Vec<String>) -> Result<String, Error> {
+    let links = vec![
+        OpdsLink {
+            link_type: LinkType::Navigation,
+            rel: Rel::RelSelf,
+            url: Cow::Borrowed(url_prefix),
+        },
+        OpdsLink {
+            link_type: LinkType::Navigation,
+            rel: Rel::Start,
+            url: Cow::Borrowed("/"),
+        },
+    ];
+
+    let entries = subs.iter_mut().map(|sub| {
+        let url = utf8_percent_encode(&format!("{}/{}", url_prefix, sub), DEFAULT_ENCODE_SET).to_string();
+        OpdsEntry::new(
+            sub,
+            sub,
+            Vec::new(),
+            vec![OpdsLink {
+                link_type: LinkType::Navigation,
+                rel: Rel::Subsection,
+                url: Cow::Owned(url),
+            }],
+        )}).collect();
+
+    let feed = OpdsFeed {
+        id: &get_uuid_id(),
+        title: &title,
+        updated: Utc::now(),
+        links,
+        entries,
+    };
+    write_opds(&feed)
+}
+pub fn make_navigation_feed() -> Result<String, Error> {
     let links = vec![
         OpdsLink {
             link_type: LinkType::Navigation,
