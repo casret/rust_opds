@@ -102,25 +102,21 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
             let publisher = &SERIES_RE.captures(path).unwrap()[1];
             let series = &SERIES_RE.captures(path).unwrap()[2];
             let entries = db.get_for_publisher_series(&publisher, &series).unwrap();
-            let body = Body::from(
-                opds::make_acquisition_feed(path, 
-                                               series,
-                                               &entries).unwrap(),
-            );
+            let body = Body::from(opds::make_acquisition_feed(path, series, &entries).unwrap());
             Box::new(future::ok(Response::new(body)))
         }
         (&Method::GET, path) if PUBLISHER_RE.is_match(path) => {
             let publisher = &PUBLISHER_RE.captures(path).unwrap()[1];
             let mut entries = db.get_series_for_publisher(&publisher).unwrap();
-            let body = Body::from(
-                opds::make_subsection_feed(path, publisher, &mut entries).unwrap(),
-            );
+            let body =
+                Body::from(opds::make_subsection_feed(path, publisher, &mut entries).unwrap());
             Box::new(future::ok(Response::new(body)))
         }
         (&Method::GET, "/publishers") => {
             let mut entries = db.get_publishers().unwrap();
             let body = Body::from(
-                opds::make_subsection_feed("/publishers", "Comics by publisher", &mut entries).unwrap(),
+                opds::make_subsection_feed("/publishers", "Comics by publisher", &mut entries)
+                    .unwrap(),
             );
             Box::new(future::ok(Response::new(body)))
         }

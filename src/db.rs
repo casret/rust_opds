@@ -15,6 +15,79 @@ impl DB {
     pub fn new(db: &str) -> Result<DB, Error> {
         let manager = SqliteConnectionManager::file(db);
         let pool = ::r2d2::Pool::new(manager)?;
+        let conn = pool.get()?;
+        conn.execute(
+            "
+CREATE TABLE IF NOT EXISTS issue (
+  filepath TEXT PRIMARY KEY,
+  modified_at TEXT NOT NULL,
+  comicvine_id INTEGER,
+  comicvine_url TEXT,
+  series TEXT,
+  issue_number INTEGER,
+  volume INTEGER,
+  title TEXT,
+  summary TEXT,
+  released_at TEXT,
+  writer TEXT,
+  penciller TEXT,
+  inker TEXT,
+  colorist TEXT,
+  cover_artist TEXT,
+  publisher TEXT,
+  page_count INTEGER,
+  cover_page TEXT
+)",
+            &[],
+        )?;
+        conn.execute(
+            "
+CREATE TABLE IF NOT EXISTS user (
+  username TEXT PRIMARY KEY,
+  salt blob,
+  ciphertext blob
+)",
+            &[],
+        )?;
+        conn.execute(
+            "
+CREATE TABLE IF NOT EXISTS read (
+  user_id INTEGER NOT NULL,
+  issue_id INTEGER NOT NULL,
+  read_at TEXT NOT NULL
+)",
+            &[],
+        )?;
+        conn.execute(
+            "
+CREATE UNIQUE INDEX IF NOT EXISTS read_user_issue on read(user_id, issue_id);
+)",
+            &[],
+        )?;
+        conn.execute(
+            "
+CREATE INDEX IF NOT EXISTS issue_modified_at on issue(modified_at);
+)",
+            &[],
+        )?;
+        conn.execute(
+            "
+CREATE INDEX IF NOT EXISTS issue_publisher_series on issue(publisher, series);
+)",
+            &[],
+        )?;
+        conn.execute(
+            "
+CREATE INDEX IF NOT EXISTS issue_released_at on issue(released_at);
+)",
+            &[],
+        )?;
+        conn.execute(
+            "
+CREATE VIRTUAL TABLE IF NOT EXISTS issue_fts USING FTS4(issue_id, comicinfo);
+)",
+            &[],
+        )?;
         Ok(DB { pool })
     }
 
@@ -120,7 +193,7 @@ impl DB {
         let mut pubs = Vec::new();
 
         while let Some(row) = rows.next() {
-            let publisher:Option<String> = row?.get(0);
+            let publisher: Option<String> = row?.get(0);
             pubs.push(publisher.unwrap_or_else(|| "None".to_owned()));
         }
         Ok(pubs)
@@ -128,19 +201,24 @@ impl DB {
 
     pub fn get_series_for_publisher(&self, publisher: &str) -> Result<Vec<String>, Error> {
         let conn = self.pool.get()?;
-        let mut stmt = conn.prepare_cached("select distinct series from issue where publisher = ?")?;
+        let mut stmt =
+            conn.prepare_cached("select distinct series from issue where publisher = ?")?;
         let mut rows = stmt.query(&[&publisher])?;
 
         let mut series = Vec::new();
 
         while let Some(row) = rows.next() {
-            let publisher:Option<String> = row?.get(0);
+            let publisher: Option<String> = row?.get(0);
             series.push(publisher.unwrap_or_else(|| "None".to_owned()));
         }
         Ok(series)
     }
 
-    pub fn get_for_publisher_series(&self, publisher: &str, series: &str) -> Result<Vec<ComicInfo>, Error> {
+    pub fn get_for_publisher_series(
+        &self,
+        publisher: &str,
+        series: &str,
+    ) -> Result<Vec<ComicInfo>, Error> {
         let conn = self.pool.get()?;
         // The ? in the None case will pick up both the unlikely event that there really
         // is a publisher named None as well as making the binds happy
@@ -153,10 +231,7 @@ impl DB {
             "None" => where_clause.push_str(" and series is null or series = ?"),
             _ => where_clause.push_str("and series = ?"),
         }
-        let mut stmt =
-            conn.prepare_cached(
-                &format!("{} {}", SELECT_CLAUSE, where_clause)
-                )?;
+        let mut stmt = conn.prepare_cached(&format!("{} {}", SELECT_CLAUSE, where_clause))?;
         let iter = stmt.query_map(&[&publisher, &series], row_to_entry)?;
         let mut retval = Vec::new();
         for comic in iter {
