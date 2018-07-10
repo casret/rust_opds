@@ -1,7 +1,7 @@
 use super::db::DB;
 use super::opds;
 use failure::Error;
-use futures::{future, Future, Stream};
+use futures::{future, Future};
 use hyper::header;
 use hyper::service::service_fn;
 use hyper::{Body, Method, Request, Response, Server, StatusCode};

@@ -13,8 +13,7 @@ fn main() -> Result<(), Error> {
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
     let config: Config = toml::from_str(&contents)?;
-    print!("{:?}", config);
     env_logger::init();
-    rust_opds::run(config)?;
+    rust_opds::run(&config)?;
     Ok(())
 }

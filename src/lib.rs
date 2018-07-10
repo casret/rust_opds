@@ -1,11 +1,11 @@
 #[macro_use]
 extern crate serde_derive;
 
-extern crate serde;
 extern crate argon2rs;
 extern crate base64;
 extern crate chrono;
 extern crate env_logger;
+extern crate serde;
 #[macro_use]
 extern crate failure;
 extern crate futures;
@@ -50,7 +50,6 @@ pub struct Config {
     comics_path: PathBuf,
     database_path: PathBuf,
 }
-
 
 pub struct ComicInfo {
     pub id: Option<i64>,
@@ -150,15 +149,13 @@ impl ComicInfo {
     }
 }
 
-pub fn run(config: Config) -> Result<(), Error> {
+pub fn run(config: &Config) -> Result<(), Error> {
     let db = Arc::new(db::DB::new(config.database_path.as_path())?);
     let scan_db = Arc::clone(&db);
     let comics_path = config.comics_path.clone();
-    thread::spawn(move || {
-        match scan_dir(comics_path.as_path(), &scan_db) {
-            Err(e) => error!("Error scanning: {}, {}", e, e.backtrace()),
-            _ => info!("Done scanning directory"),
-        }
+    thread::spawn(move || match scan_dir(comics_path.as_path(), &scan_db) {
+        Err(e) => error!("Error scanning: {}, {}", e, e.backtrace()),
+        _ => info!("Done scanning directory"),
     });
     web::start_web_service(Arc::clone(&db), config.addr)?;
     Ok(())
@@ -184,7 +181,9 @@ fn scan_dir(dir: &Path, db: &Arc<db::DB>) -> Result<(), Error> {
             }
         };
         match comic_info {
-            Ok((comic_info, entries)) => db.store_comic(&ComicInfo::new(&entry, comic_info)?, &entries)?,
+            Ok((comic_info, entries)) => {
+                db.store_comic(&ComicInfo::new(&entry, comic_info)?, &entries)?
+            }
             Err(e) => error!("Skipping {}: {}", entry.path().display(), e),
         }
     }
@@ -196,7 +195,7 @@ fn process_rar(file: &DirEntry) -> Result<(Option<String>, Vec<String>), Error> 
 
     let archive = unrar::Archive::new(file.path().to_string_lossy().into());
 
-    let mut entries:Vec<String> = Vec::new();
+    let mut entries: Vec<String> = Vec::new();
 
     match archive.list() {
         Ok(archive) => for entry in archive {
@@ -204,12 +203,11 @@ fn process_rar(file: &DirEntry) -> Result<(Option<String>, Vec<String>), Error> 
                 Ok(e) => entries.push(e.filename),
                 Err(e) => return Err(format_err!("{}", e)),
             }
-        }
+        },
         Err(e) => return Err(format_err!("{}", e)),
     };
 
-
-    if entries.iter().position(|e| e == "ComicInfo.xml").is_some() {
+    if entries.iter().any(|e| e == "ComicInfo.xml") {
         let archive = unrar::Archive::new(file.path().to_string_lossy().into());
         match archive.read_bytes("ComicInfo.xml") {
             Ok(bytes) => Ok((Some(str::from_utf8(&bytes)?.to_owned()), entries)),

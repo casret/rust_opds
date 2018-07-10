@@ -4,8 +4,8 @@ use failure::Error;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Row;
-use walkdir::DirEntry;
 use std::path::Path;
+use walkdir::DirEntry;
 
 #[derive(Clone)]
 pub struct DB {
@@ -17,7 +17,8 @@ impl DB {
         let manager = SqliteConnectionManager::file(db);
         let pool = ::r2d2::Pool::new(manager)?;
         let conn = pool.get()?;
-        conn.execute("
+        conn.execute(
+            "
           CREATE TABLE IF NOT EXISTS issue (
             filepath TEXT PRIMARY KEY,
             modified_at TEXT NOT NULL,
@@ -38,51 +39,80 @@ impl DB {
             publisher TEXT,
             page_count INTEGER,
             cover_page TEXT
-          )", &[])?;
+          )",
+            &[],
+        )?;
 
-        conn.execute("
+        conn.execute(
+            "
           CREATE TABLE IF NOT EXISTS user (
             username TEXT PRIMARY KEY,
             salt blob,
             ciphertext blob
-          )", &[])?;
+          )",
+            &[],
+        )?;
 
-        conn.execute("
+        conn.execute(
+            "
           CREATE TABLE IF NOT EXISTS read (
             user_id INTEGER NOT NULL,
             issue_id INTEGER NOT NULL,
             read_at TEXT NOT NULL
-          )", &[])?;
+          )",
+            &[],
+        )?;
 
-        conn.execute("
+        conn.execute(
+            "
           CREATE TABLE IF NOT EXISTS page (
             issue_id INTEGER NOT NULL,
             entry TEXT NOT NULL
-          )", &[])?;
+          )",
+            &[],
+        )?;
 
-        conn.execute("
+        conn.execute(
+            "
           CREATE UNIQUE INDEX IF NOT EXISTS read_user_issue on read(user_id, issue_id)
-          ", &[])?;
+          ",
+            &[],
+        )?;
 
-        conn.execute("
+        conn.execute(
+            "
           CREATE UNIQUE INDEX IF NOT EXISTS page_issue on page(issue_id, entry)
-          ", &[])?;
+          ",
+            &[],
+        )?;
 
-        conn.execute("
+        conn.execute(
+            "
           CREATE INDEX IF NOT EXISTS issue_modified_at on issue(modified_at)
-          ", &[])?;
+          ",
+            &[],
+        )?;
 
-        conn.execute("
+        conn.execute(
+            "
           CREATE INDEX IF NOT EXISTS issue_publisher_series on issue(publisher, series)
-          ", &[])?;
+          ",
+            &[],
+        )?;
 
-        conn.execute("
+        conn.execute(
+            "
           CREATE INDEX IF NOT EXISTS issue_released_at on issue(released_at)
-          ", &[])?;
+          ",
+            &[],
+        )?;
 
-        conn.execute("
+        conn.execute(
+            "
           CREATE VIRTUAL TABLE IF NOT EXISTS issue_fts USING FTS4(issue_id, comicinfo)
-          ", &[])?;
+          ",
+            &[],
+        )?;
 
         Ok(DB { pool })
     }
@@ -120,10 +150,10 @@ impl DB {
             stmt.insert(&[&issue_id, comic_info])?;
         }
 
-        conn.execute("delete from page where issue_id = ?", &[&issue_id] )?;
+        conn.execute("delete from page where issue_id = ?", &[&issue_id])?;
         stmt = conn.prepare_cached("insert into page(issue_id, entry) values (?, ?)")?;
         for entry in entries {
-          stmt.insert(&[&issue_id, &entry.as_str()])?;
+            stmt.insert(&[&issue_id, &entry.as_str()])?;
         }
         Ok(())
     }
