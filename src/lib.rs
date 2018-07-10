@@ -1,3 +1,7 @@
+#[macro_use]
+extern crate serde_derive;
+
+extern crate serde;
 extern crate argon2rs;
 extern crate base64;
 extern crate chrono;
@@ -27,7 +31,9 @@ extern crate zip;
 use chrono::prelude::*;
 use failure::Error;
 use std::io::prelude::*;
+use std::net::SocketAddr;
 use std::path::Path;
+use std::path::PathBuf;
 use std::str;
 use std::sync::Arc;
 use std::thread;
@@ -37,6 +43,14 @@ use xml::reader::{EventReader, XmlEvent};
 mod db;
 mod opds;
 pub mod web;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Config {
+    addr: SocketAddr,
+    comics_path: PathBuf,
+    database_path: PathBuf,
+}
+
 
 pub struct ComicInfo {
     pub id: Option<i64>,
@@ -134,16 +148,16 @@ impl ComicInfo {
     }
 }
 
-pub fn run() -> Result<(), Error> {
-    let db = Arc::new(db::DB::new("comics.db")?);
+pub fn run(config: Config) -> Result<(), Error> {
+    let db = Arc::new(db::DB::new(config.database_path.as_path())?);
     let scan_db = Arc::clone(&db);
-    thread::spawn(move || scan_dir("/Users/casret/comics", &scan_db));
-    let addr = ([127, 0, 0, 1], 3000);
-    web::start_web_service(Arc::clone(&db), addr.into())?;
+    let comics_path = config.comics_path.clone();
+    thread::spawn(move || scan_dir(comics_path.as_path(), &scan_db));
+    web::start_web_service(Arc::clone(&db), config.addr)?;
     Ok(())
 }
 
-fn scan_dir(dir: &str, db: &Arc<db::DB>) -> Result<(), Error> {
+fn scan_dir(dir: &Path, db: &Arc<db::DB>) -> Result<(), Error> {
     for entry in WalkDir::new(dir)
         .into_iter()
         .filter_map(|e| e.ok())

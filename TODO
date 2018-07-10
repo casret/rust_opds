@@ -1,23 +1,23 @@
 My TODOlist for beta (roughly in priorty order)
 
 Functionality:
-- serve OPDS feeds based on db
-  * all
-  * recent
-  * unread
-  * publisher/title
-  - path
-- serve covers
-  - probably have to tag cover candidates during scan
-- allow configuration
 - store size and modtime
-- make DB and xml generation async
-- support streaming extension (http://vaemendis.net/opds-pse/)
+- serve covers
+  - store all file entries, will need this for streaming
 - import comicrack Db (probably a seperate binary since we'll do it once)
   - option to update the tag files
 - prune old paths (probably need a seperate binary since we don't want to wipe DB by mistake)
-- transcode comics to webp (70 quality seems to be sweet spot)
 
+
+Post Beta:
+- make DB and xml generation async (fast enough, and probably most use cases won't need high concurrency)
+- transcode comics to webp (70 quality seems to be sweet spot)
+- support streaming extension (http://vaemendis.net/opds-pse/)
+- database migrations
+- search
+- basic admin page
+- 7zip support
+- path based OPDS feed
 
 Cleanup type tasks
 - tests!!

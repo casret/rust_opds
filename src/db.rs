@@ -5,6 +5,7 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Row;
 use walkdir::DirEntry;
+use std::path::Path;
 
 #[derive(Clone)]
 pub struct DB {
@@ -12,7 +13,7 @@ pub struct DB {
 }
 
 impl DB {
-    pub fn new(db: &str) -> Result<DB, Error> {
+    pub fn new(db: &Path) -> Result<DB, Error> {
         let manager = SqliteConnectionManager::file(db);
         let pool = ::r2d2::Pool::new(manager)?;
         let conn = pool.get()?;

@@ -18,8 +18,11 @@ r2d2_sqlite = "0.5.0"
 rand = "0.5.3"
 regex = "1"
 rusqlite = { version = "0.13.0", features = ["chrono"] }
+serde = "1.0"
+serde_derive = "1.0"
 tokio-fs = "0.1.1"
 tokio-io = "0.1.7"
+toml = "0.4"
 unrar ={ git = "https://github.com/casret/unrar.rs", rev = "daac3be" }
 uuid = { version = "0.6", features = ["v4"] }
 url = "1.7.0"
