@@ -56,6 +56,7 @@ pub struct ComicInfo {
     pub id: Option<i64>,
     pub comic_info: Option<String>,
     pub filepath: String,
+    pub size: i32,
     pub modified_at: DateTime<Local>,
     pub comicvine_id: Option<i64>,
     pub comicvine_url: Option<String>,
@@ -80,7 +81,8 @@ impl ComicInfo {
             id: None, // You don't get an Id until you are in the DB
             comic_info,
             filepath: entry.path().to_string_lossy().to_string(),
-            modified_at: entry_modified(entry).unwrap_or_else(Local::now),
+            modified_at: entry_modified(entry),
+            size: entry_size(entry) as i32,
             comicvine_id: None,
             comicvine_url: None,
             series: None,
@@ -152,7 +154,12 @@ pub fn run(config: Config) -> Result<(), Error> {
     let db = Arc::new(db::DB::new(config.database_path.as_path())?);
     let scan_db = Arc::clone(&db);
     let comics_path = config.comics_path.clone();
-    thread::spawn(move || scan_dir(comics_path.as_path(), &scan_db));
+    thread::spawn(move || {
+        match scan_dir(comics_path.as_path(), &scan_db) {
+            Err(e) => error!("Error scanning: {}, {}", e, e.backtrace()),
+            _ => info!("Done scanning directory"),
+        }
+    });
     web::start_web_service(Arc::clone(&db), config.addr)?;
     Ok(())
 }
@@ -177,48 +184,72 @@ fn scan_dir(dir: &Path, db: &Arc<db::DB>) -> Result<(), Error> {
             }
         };
         match comic_info {
-            Ok(comic_info) => db.store_comic(&ComicInfo::new(&entry, comic_info)?)?,
+            Ok((comic_info, entries)) => db.store_comic(&ComicInfo::new(&entry, comic_info)?, &entries)?,
             Err(e) => error!("Skipping {}: {}", entry.path().display(), e),
         }
     }
     Ok(())
 }
 
-fn process_rar(file: &DirEntry) -> Result<Option<String>, Error> {
-    use unrar::error::{Code, UnrarError};
+fn process_rar(file: &DirEntry) -> Result<(Option<String>, Vec<String>), Error> {
     info!("Processing {}", file.path().display());
-    match unrar::Archive::new(file.path().to_string_lossy().into()).read_bytes("ComicInfo.xml") {
-        Ok(bytes) => Ok(Some(str::from_utf8(&bytes)?.to_owned())),
-        Err(UnrarError {
-            code: Code::EndArchive,
-            ..
-        }) => Ok(None),
-        Err(e) => Err(format_err!("{}", e)),
+
+    let archive = unrar::Archive::new(file.path().to_string_lossy().into());
+
+    let mut entries:Vec<String> = Vec::new();
+
+    match archive.list() {
+        Ok(archive) => for entry in archive {
+            match entry {
+                Ok(e) => entries.push(e.filename),
+                Err(e) => return Err(format_err!("{}", e)),
+            }
+        }
+        Err(e) => return Err(format_err!("{}", e)),
+    };
+
+
+    if entries.iter().position(|e| e == "ComicInfo.xml").is_some() {
+        let archive = unrar::Archive::new(file.path().to_string_lossy().into());
+        match archive.read_bytes("ComicInfo.xml") {
+            Ok(bytes) => Ok((Some(str::from_utf8(&bytes)?.to_owned()), entries)),
+            Err(e) => Err(format_err!("{}", e)),
+        }
+    } else {
+        Ok((None, entries))
     }
 }
 
-fn process_zip(entry: &DirEntry) -> Result<Option<String>, Error> {
+fn process_zip(entry: &DirEntry) -> Result<(Option<String>, Vec<String>), Error> {
     info!("Processing {}", entry.path().display());
+    let entries = Vec::new();
     let zipfile = std::fs::File::open(&entry.path())?;
     let mut archive = zip::ZipArchive::new(zipfile)?;
 
     let mut file = match archive.by_name("ComicInfo.xml") {
         Ok(file) => file,
-        Err(zip::result::ZipError::FileNotFound) => return Ok(None),
+        Err(zip::result::ZipError::FileNotFound) => return Ok((None, entries)),
         Err(e) => Err(e)?,
     };
 
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
-    Ok(Some(contents))
+    Ok((Some(contents), entries))
 }
 
-fn entry_modified(entry: &DirEntry) -> Option<DateTime<Local>> {
+fn entry_modified(entry: &DirEntry) -> DateTime<Local> {
     match entry.metadata() {
         Ok(metadata) => match metadata.modified() {
-            Ok(modified) => Some(DateTime::from(modified)),
-            _ => None,
+            Ok(modified) => DateTime::from(modified),
+            _ => Local::now(),
         },
-        _ => None,
+        _ => Local::now(),
+    }
+}
+
+fn entry_size(entry: &DirEntry) -> u64 {
+    match entry.metadata() {
+        Ok(metadata) => metadata.len(),
+        _ => 0,
     }
 }

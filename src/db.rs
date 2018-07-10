@@ -17,90 +17,86 @@ impl DB {
         let manager = SqliteConnectionManager::file(db);
         let pool = ::r2d2::Pool::new(manager)?;
         let conn = pool.get()?;
-        conn.execute(
-            "
-CREATE TABLE IF NOT EXISTS issue (
-  filepath TEXT PRIMARY KEY,
-  modified_at TEXT NOT NULL,
-  comicvine_id INTEGER,
-  comicvine_url TEXT,
-  series TEXT,
-  issue_number INTEGER,
-  volume INTEGER,
-  title TEXT,
-  summary TEXT,
-  released_at TEXT,
-  writer TEXT,
-  penciller TEXT,
-  inker TEXT,
-  colorist TEXT,
-  cover_artist TEXT,
-  publisher TEXT,
-  page_count INTEGER,
-  cover_page TEXT
-)",
-            &[],
-        )?;
-        conn.execute(
-            "
-CREATE TABLE IF NOT EXISTS user (
-  username TEXT PRIMARY KEY,
-  salt blob,
-  ciphertext blob
-)",
-            &[],
-        )?;
-        conn.execute(
-            "
-CREATE TABLE IF NOT EXISTS read (
-  user_id INTEGER NOT NULL,
-  issue_id INTEGER NOT NULL,
-  read_at TEXT NOT NULL
-)",
-            &[],
-        )?;
-        conn.execute(
-            "
-CREATE UNIQUE INDEX IF NOT EXISTS read_user_issue on read(user_id, issue_id);
-)",
-            &[],
-        )?;
-        conn.execute(
-            "
-CREATE INDEX IF NOT EXISTS issue_modified_at on issue(modified_at);
-)",
-            &[],
-        )?;
-        conn.execute(
-            "
-CREATE INDEX IF NOT EXISTS issue_publisher_series on issue(publisher, series);
-)",
-            &[],
-        )?;
-        conn.execute(
-            "
-CREATE INDEX IF NOT EXISTS issue_released_at on issue(released_at);
-)",
-            &[],
-        )?;
-        conn.execute(
-            "
-CREATE VIRTUAL TABLE IF NOT EXISTS issue_fts USING FTS4(issue_id, comicinfo);
-)",
-            &[],
-        )?;
+        conn.execute("
+          CREATE TABLE IF NOT EXISTS issue (
+            filepath TEXT PRIMARY KEY,
+            modified_at TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            comicvine_id INTEGER,
+            comicvine_url TEXT,
+            series TEXT,
+            issue_number INTEGER,
+            volume INTEGER,
+            title TEXT,
+            summary TEXT,
+            released_at TEXT,
+            writer TEXT,
+            penciller TEXT,
+            inker TEXT,
+            colorist TEXT,
+            cover_artist TEXT,
+            publisher TEXT,
+            page_count INTEGER,
+            cover_page TEXT
+          )", &[])?;
+
+        conn.execute("
+          CREATE TABLE IF NOT EXISTS user (
+            username TEXT PRIMARY KEY,
+            salt blob,
+            ciphertext blob
+          )", &[])?;
+
+        conn.execute("
+          CREATE TABLE IF NOT EXISTS read (
+            user_id INTEGER NOT NULL,
+            issue_id INTEGER NOT NULL,
+            read_at TEXT NOT NULL
+          )", &[])?;
+
+        conn.execute("
+          CREATE TABLE IF NOT EXISTS page (
+            issue_id INTEGER NOT NULL,
+            entry TEXT NOT NULL
+          )", &[])?;
+
+        conn.execute("
+          CREATE UNIQUE INDEX IF NOT EXISTS read_user_issue on read(user_id, issue_id)
+          ", &[])?;
+
+        conn.execute("
+          CREATE UNIQUE INDEX IF NOT EXISTS page_issue on page(issue_id, entry)
+          ", &[])?;
+
+        conn.execute("
+          CREATE INDEX IF NOT EXISTS issue_modified_at on issue(modified_at)
+          ", &[])?;
+
+        conn.execute("
+          CREATE INDEX IF NOT EXISTS issue_publisher_series on issue(publisher, series)
+          ", &[])?;
+
+        conn.execute("
+          CREATE INDEX IF NOT EXISTS issue_released_at on issue(released_at)
+          ", &[])?;
+
+        conn.execute("
+          CREATE VIRTUAL TABLE IF NOT EXISTS issue_fts USING FTS4(issue_id, comicinfo)
+          ", &[])?;
+
         Ok(DB { pool })
     }
 
-    pub fn store_comic(&self, info: &ComicInfo) -> Result<(), Error> {
+    pub fn store_comic(&self, info: &ComicInfo, entries: &[String]) -> Result<(), Error> {
         let conn = self.pool.get()?;
-        let mut stmt = conn.prepare_cached("replace into issue(filepath, modified_at, comicvine_id,
+        let mut stmt = conn.prepare_cached("replace into issue(filepath, modified_at, size, comicvine_id,
             comicvine_url, series, issue_number, volume, title, summary, released_at, writer, penciller,
-            inker, colorist, cover_artist, publisher, page_count) values (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)")?;
+            inker, colorist, cover_artist, publisher, page_count) values (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18)")?;
 
         let issue_id = stmt.insert(&[
             &info.filepath,
             &info.modified_at,
+            &info.size,
             &info.comicvine_id,
             &info.comicvine_url,
             &info.series,
@@ -123,6 +119,12 @@ CREATE VIRTUAL TABLE IF NOT EXISTS issue_fts USING FTS4(issue_id, comicinfo);
                 conn.prepare_cached("replace into issue_fts(issue_id, comicinfo) values (?1, ?2)")?;
             stmt.insert(&[&issue_id, comic_info])?;
         }
+
+        conn.execute("delete from page where issue_id = ?", &[&issue_id] )?;
+        stmt = conn.prepare_cached("insert into page(issue_id, entry) values (?, ?)")?;
+        for entry in entries {
+          stmt.insert(&[&issue_id, &entry.as_str()])?;
+        }
         Ok(())
     }
 
@@ -130,10 +132,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS issue_fts USING FTS4(issue_id, comicinfo);
     // that path hasn't be modified since the last mod_time
     pub fn should_update(&self, entry: &DirEntry) -> bool {
         let path: String = entry.path().to_string_lossy().into();
-        let modified = match super::entry_modified(entry) {
-            Some(modified) => modified,
-            _ => return true,
-        };
+        let modified = super::entry_modified(entry);
 
         if let Ok(conn) = self.pool.get() {
             conn.query_row(
@@ -299,7 +298,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS issue_fts USING FTS4(issue_id, comicinfo);
     }
 }
 
-const SELECT_CLAUSE: &str = "select i.rowid, i.filepath, i.modified_at, i.comicvine_id, i.comicvine_url, i.series, i.issue_number, i.volume, i.title, i.summary, i.released_at, i.writer, i.penciller, i.inker, i.colorist, i.cover_artist, i.publisher, i.page_count from issue i";
+const SELECT_CLAUSE: &str = "select i.rowid, i.filepath, i.modified_at, i.size, i.comicvine_id, i.comicvine_url, i.series, i.issue_number, i.volume, i.title, i.summary, i.released_at, i.writer, i.penciller, i.inker, i.colorist, i.cover_artist, i.publisher, i.page_count from issue i";
 
 fn row_to_entry(row: &Row) -> ComicInfo {
     ComicInfo {
@@ -307,20 +306,21 @@ fn row_to_entry(row: &Row) -> ComicInfo {
         id: row.get(0),
         filepath: row.get(1),
         modified_at: row.get(2),
-        comicvine_id: row.get(3),
-        comicvine_url: row.get(4),
-        series: row.get(5),
-        issue_number: row.get(6),
-        volume: row.get(7),
-        title: row.get(8),
-        summary: row.get(9),
-        released_at: row.get(10),
-        writer: row.get(11),
-        penciller: row.get(12),
-        inker: row.get(13),
-        colorist: row.get(14),
-        cover_artist: row.get(15),
-        publisher: row.get(16),
-        page_count: row.get(17),
+        size: row.get(3),
+        comicvine_id: row.get(4),
+        comicvine_url: row.get(5),
+        series: row.get(6),
+        issue_number: row.get(7),
+        volume: row.get(8),
+        title: row.get(9),
+        summary: row.get(10),
+        released_at: row.get(11),
+        writer: row.get(12),
+        penciller: row.get(13),
+        inker: row.get(14),
+        colorist: row.get(15),
+        cover_artist: row.get(16),
+        publisher: row.get(17),
+        page_count: row.get(18),
     }
 }

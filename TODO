@@ -1,7 +1,6 @@
 My TODOlist for beta (roughly in priorty order)
 
 Functionality:
-- store size and modtime
 - serve covers
   - store all file entries, will need this for streaming
 - import comicrack Db (probably a seperate binary since we'll do it once)
