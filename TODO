@@ -2,12 +2,13 @@ My TODOlist for beta (roughly in priorty order)
 
 Functionality:
 - import comicrack Db (probably a seperate binary since we'll do it once)
-  - option to update the tag files
+  - option to update the tag files (need to convert to zip)
 - prune old paths (probably need a seperate binary since we don't want to wipe DB by mistake)
 
 
 Post Beta:
 - make DB and xml generation async (fast enough, and probably most use cases won't need high concurrency)
+  - I think I can just wrap them in blocking futures
 - transcode comics to webp (70 quality seems to be sweet spot)
 - support streaming extension (http://vaemendis.net/opds-pse/)
 - database migrations
