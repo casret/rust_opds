@@ -55,9 +55,13 @@ fn parse_auth_header(auth: &str) -> Option<(String, String)> {
 fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
     lazy_static! {
         static ref COMIC_RE: Regex = Regex::new(r"/comic/(\d+)/").unwrap();
+        static ref COVER_RE: Regex = Regex::new(r"/cover/(\d+)/").unwrap();
         static ref PUBLISHER_RE: Regex = Regex::new(r"/publishers/(.*)").unwrap();
         static ref SERIES_RE: Regex = Regex::new(r"/publishers/(.*)/(.*)").unwrap();
     }
+
+    // Why doesn't hyper do this for me?
+    let path: &str = &percent_decode(req.uri().path().as_bytes()).decode_utf8_lossy();
     let user_id = match req.headers().get(header::AUTHORIZATION) {
         None => {
             return unauthorized();
@@ -78,8 +82,6 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
 
     info!("Got user {}", user_id);
 
-    // Why doesn't hyper do this for me?
-    let path: &str = &percent_decode(req.uri().path().as_bytes()).decode_utf8_lossy();
     match (req.method(), path) {
         (&Method::GET, "/") | (&Method::GET, "/index.html") => {
             let body = Body::from(opds::make_navigation_feed().unwrap());
@@ -132,6 +134,11 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
             let entry = db.get(id).unwrap();
             db.mark_read(id, user_id).unwrap();
             simple_file_send(&entry.filepath)
+        }
+        (&Method::GET, path) if COVER_RE.is_match(path) => {
+            let id = COVER_RE.captures(path).unwrap()[1].parse::<i64>().unwrap();
+            let body = Body::from(db.get_cover_for(id).unwrap());
+            Box::new(future::ok(Response::new(body)))
         }
         _ => not_found(),
     }

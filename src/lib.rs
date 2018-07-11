@@ -21,6 +21,7 @@ extern crate regex;
 extern crate rusqlite;
 extern crate tokio_fs;
 extern crate tokio_io;
+extern crate tokio_threadpool;
 extern crate unrar;
 extern crate url;
 extern crate uuid;
@@ -161,6 +162,27 @@ pub fn run(config: &Config) -> Result<(), Error> {
     Ok(())
 }
 
+// TODO: probably move all the compression stuff to another module
+pub fn get_bytes_for_entry(filepath: &str, entry: &str) -> Result<Vec<u8>, Error> {
+    if filepath.ends_with("cbr") {
+        let archive = unrar::Archive::new(filepath.to_owned());
+        match archive.read_bytes(entry) {
+            Err(e) => Err(format_err!("Rar error {}", e)),
+            Ok(e) => Ok(e),
+        }
+    } else if filepath.ends_with("cbz") {
+        let fname = std::path::Path::new(filepath);
+        let zipfile = std::fs::File::open(&fname)?;
+        let mut archive = zip::ZipArchive::new(zipfile)?;
+        let mut file = archive.by_name(entry)?;
+        let mut contents = Vec::new();
+        file.read_to_end(&mut contents)?;
+        Ok(contents)
+    } else {
+        Err(failure::err_msg("Unsupported archive"))
+    }
+}
+
 fn scan_dir(dir: &Path, db: &Arc<db::DB>) -> Result<(), Error> {
     for entry in WalkDir::new(dir)
         .into_iter()
@@ -220,19 +242,23 @@ fn process_rar(file: &DirEntry) -> Result<(Option<String>, Vec<String>), Error> 
 
 fn process_zip(entry: &DirEntry) -> Result<(Option<String>, Vec<String>), Error> {
     info!("Processing {}", entry.path().display());
-    let entries = Vec::new();
     let zipfile = std::fs::File::open(&entry.path())?;
     let mut archive = zip::ZipArchive::new(zipfile)?;
 
-    let mut file = match archive.by_name("ComicInfo.xml") {
-        Ok(file) => file,
-        Err(zip::result::ZipError::FileNotFound) => return Ok((None, entries)),
-        Err(e) => Err(e)?,
-    };
+    let mut comic_info = None;
+    let mut entries = Vec::new();
 
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-    Ok((Some(contents), entries))
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        entries.push(file.name().to_owned());
+        if file.name() == "ComicInfo.xml" {
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)?;
+            comic_info = Some(contents);
+        }
+    }
+
+    Ok((comic_info, entries))
 }
 
 fn entry_modified(entry: &DirEntry) -> DateTime<Local> {

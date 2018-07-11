@@ -276,6 +276,30 @@ impl DB {
         Ok(stmt.query_row(&[&id], row_to_entry)?)
     }
 
+    pub fn get_cover_for(&self, id: i64) -> Result<Vec<u8>, Error> {
+        #[derive(Default)]
+        struct Entry {
+            issue: String,
+            entry: String,
+        };
+
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare_cached("select i.filepath, p.entry from issue i, page p where i.rowid = p.issue_id and i.rowid = ? order by p.entry")?;
+        let iter = stmt.query_map(&[&id], |r| Entry {
+            issue: r.get(0),
+            entry: r.get(1),
+        })?;
+        let cover_entry = iter.map(|e| e.unwrap_or_default())
+            .find(|e| e.entry.ends_with("jpg"));
+
+        let cover_entry = match cover_entry {
+            None => return Err(::failure::err_msg("No cover")),
+            Some(e) => e,
+        };
+
+        super::get_bytes_for_entry(&cover_entry.issue, &cover_entry.entry)
+    }
+
     pub fn mark_read(&self, issue_id: i64, user_id: i64) -> Result<i32, Error> {
         let conn = self.pool.get()?;
         let mut stmt =

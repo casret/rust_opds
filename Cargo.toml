@@ -22,6 +22,7 @@ serde = "1.0"
 serde_derive = "1.0"
 tokio-fs = "0.1.1"
 tokio-io = "0.1.7"
+tokio-threadpool = "0.1.5"
 toml = "0.4"
 unrar ={ git = "https://github.com/casret/unrar.rs", rev = "daac3be" }
 uuid = { version = "0.6", features = ["v4"] }
