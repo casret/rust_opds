@@ -58,6 +58,7 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
         static ref COVER_RE: Regex = Regex::new(r"/cover/(\d+)/").unwrap();
         static ref PUBLISHER_RE: Regex = Regex::new(r"/publishers/(.*)").unwrap();
         static ref SERIES_RE: Regex = Regex::new(r"/publishers/(.*)/(.*)").unwrap();
+        static ref UNREAD_RE: Regex = Regex::new(r"/unread/(.*)").unwrap();
     }
 
     // Why doesn't hyper do this for me?
@@ -114,6 +115,12 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
                 Body::from(opds::make_subsection_feed(path, publisher, &mut entries).unwrap());
             Box::new(future::ok(Response::new(body)))
         }
+        (&Method::GET, path) if UNREAD_RE.is_match(path) => {
+            let series = &UNREAD_RE.captures(path).unwrap()[1];
+            let mut entries = db.get_unread_for_series(user_id, &series).unwrap();
+            let body = Body::from(opds::make_acquisition_feed(path, series, &entries).unwrap());
+            Box::new(future::ok(Response::new(body)))
+        }
         (&Method::GET, "/publishers") => {
             let mut entries = db.get_publishers().unwrap();
             let body = Body::from(
@@ -123,6 +130,14 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
             Box::new(future::ok(Response::new(body)))
         }
         (&Method::GET, "/unread") => {
+            let mut entries = db.get_unread_series(user_id).unwrap();
+            let body = Body::from(
+                opds::make_subsection_feed("/unread", "Unread comics by series", &mut entries)
+                    .unwrap(),
+            );
+            Box::new(future::ok(Response::new(body)))
+        }
+        (&Method::GET, "/unread_all") => {
             let entries = db.get_unread(user_id).unwrap();
             let body = Body::from(
                 opds::make_acquisition_feed("/unread", "Unread Comics", &entries).unwrap(),

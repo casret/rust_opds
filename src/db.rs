@@ -224,6 +224,42 @@ impl DB {
         Ok(retval)
     }
 
+    pub fn get_unread_series(&self, user_id: i64) -> Result<Vec<String>, Error> {
+        let conn = self.pool.get()?;
+        let mut stmt =
+            conn.prepare_cached("select distinct series from issue i left join (select issue_id from read where user_id = ?) r on i.rowid = r.issue_id where r.issue_id is null order by released_at")?;
+        let mut rows = stmt.query(&[&user_id])?;
+        let mut series = Vec::new();
+
+        while let Some(row) = rows.next() {
+            let s: Option<String> = row?.get(0);
+            series.push(s.unwrap_or_else(|| "None".to_owned()));
+        }
+        Ok(series)
+    }
+
+    pub fn get_unread_for_series(&self, user_id: i64, series: &str) -> Result<Vec<ComicInfo>, Error> {
+        let mut query = format!("{} left join (select issue_id from read where user_id = ?) r on i.rowid = r.issue_id where r.issue_id is null ", SELECT_CLAUSE);
+
+        let conn = self.pool.get()?;
+        // The ? in the None case will pick up both the unlikely event that there really
+        // is a series named None as well as making the binds happy
+        match series {
+            "None" => query.push_str("and (series is null or series = ?) "),
+            _ => query.push_str("and series = ? "),
+        };
+
+        query.push_str(" order by released_at");
+        let mut stmt = conn.prepare_cached(&query)?;
+        let iter = stmt.query_map(&[&user_id, &series], row_to_entry)?;
+        let mut retval = Vec::new();
+        for comic in iter {
+            retval.push(comic?)
+        }
+        Ok(retval)
+    }
+
+
     pub fn get_publishers(&self) -> Result<Vec<String>, Error> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare_cached("select distinct publisher from issue")?;

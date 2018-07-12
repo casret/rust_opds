@@ -205,11 +205,31 @@ pub fn make_navigation_feed() -> Result<String, Error> {
             }],
         ),
         OpdsEntry::new(
-            "Unread comics",
+            "comics by publisher",
+            "All comics sorted by publisher",
+            Vec::new(),
+            vec![OpdsLink {
+                link_type: LinkType::Navigation,
+                rel: Rel::SortNew,
+                url: Cow::Borrowed("/publishers"),
+            }],
+        ),
+        OpdsEntry::new(
+            "All unread comics",
             "All unread comics sorted by published date",
             Vec::new(),
             vec![OpdsLink {
                 link_type: LinkType::Acquisition,
+                rel: Rel::Subsection,
+                url: Cow::Borrowed("/unread_all"),
+            }],
+        ),
+        OpdsEntry::new(
+            "Unread comics by Series",
+            "Unread comics by Series",
+            Vec::new(),
+            vec![OpdsLink {
+                link_type: LinkType::Navigation,
                 rel: Rel::Subsection,
                 url: Cow::Borrowed("/unread"),
             }],
