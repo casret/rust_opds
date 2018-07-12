@@ -41,15 +41,22 @@ use std::thread;
 use walkdir::{DirEntry, WalkDir};
 use xml::reader::{EventReader, XmlEvent};
 
-mod db;
+pub mod db;
 mod opds;
 pub mod web;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     addr: SocketAddr,
-    comics_path: PathBuf,
-    database_path: PathBuf,
+    pub comics_path: PathBuf,
+    pub database_path: PathBuf,
+    pub import_comicrack: Option<ImportConfig>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ImportConfig {
+    pub strip_prefix: Option<String>,
+    pub read_user: Option<String>,
 }
 
 pub struct ComicInfo {
@@ -76,11 +83,11 @@ pub struct ComicInfo {
 }
 
 impl ComicInfo {
-    pub fn new(entry: &DirEntry, comic_info: Option<String>) -> Result<ComicInfo, Error> {
+    pub fn new(entry: &Path, comic_info: Option<String>) -> Result<ComicInfo, Error> {
         let mut info = ComicInfo {
             id: None, // You don't get an Id until you are in the DB
             comic_info,
-            filepath: entry.path().to_string_lossy().to_string(),
+            filepath: entry.to_string_lossy().to_string(),
             modified_at: entry_modified(entry),
             size: entry_size(entry) as i32,
             comicvine_id: None,
@@ -204,7 +211,7 @@ fn scan_dir(dir: &Path, db: &Arc<db::DB>) -> Result<(), Error> {
         };
         match comic_info {
             Ok((comic_info, entries)) => {
-                db.store_comic(&ComicInfo::new(&entry, comic_info)?, &entries)?
+                db.store_comic(&ComicInfo::new(&entry.path(), comic_info)?, &entries)?;
             }
             Err(e) => error!("Skipping {}: {}", entry.path().display(), e),
         }
@@ -261,7 +268,7 @@ fn process_zip(entry: &DirEntry) -> Result<(Option<String>, Vec<String>), Error>
     Ok((comic_info, entries))
 }
 
-fn entry_modified(entry: &DirEntry) -> DateTime<Local> {
+fn entry_modified(entry: &Path) -> DateTime<Local> {
     match entry.metadata() {
         Ok(metadata) => match metadata.modified() {
             Ok(modified) => DateTime::from(modified),
@@ -271,7 +278,7 @@ fn entry_modified(entry: &DirEntry) -> DateTime<Local> {
     }
 }
 
-fn entry_size(entry: &DirEntry) -> u64 {
+fn entry_size(entry: &Path) -> u64 {
     match entry.metadata() {
         Ok(metadata) => metadata.len(),
         _ => 0,

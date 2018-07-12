@@ -1,3 +1,7 @@
 addr = "0.0.0.0:6737"
-comics_path = "/Users/casret/comics"
+comics_path = "/Volumes/comics"
 database_path = "comics.db"
+
+[import_comicrack]
+strip_prefix = "Y:\\" # Take this off before mapping file to comics_path
+read_user = "casret" # User to update the read status for (must exist)

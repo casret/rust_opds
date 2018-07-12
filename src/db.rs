@@ -117,11 +117,18 @@ impl DB {
         Ok(DB { pool })
     }
 
-    pub fn store_comic(&self, info: &ComicInfo, entries: &[String]) -> Result<(), Error> {
+    pub fn store_comic(&self, info: &ComicInfo, entries: &[String]) -> Result<i64, Error> {
         let conn = self.pool.get()?;
-        let mut stmt = conn.prepare_cached("replace into issue(filepath, modified_at, size, comicvine_id,
+        let mut stmt = conn.prepare_cached("insert into issue(filepath, modified_at, size, comicvine_id,
             comicvine_url, series, issue_number, volume, title, summary, released_at, writer, penciller,
-            inker, colorist, cover_artist, publisher, page_count) values (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18)")?;
+            inker, colorist, cover_artist, publisher, page_count) values (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18)
+            ON CONFLICT(filepath) DO UPDATE SET
+            modified_at = excluded.modified_at, size = excluded.size, comicvine_id = excluded.comicvine_id,
+            comicvine_url = excluded.comicvine_url, series = excluded.series, issue_number = excluded.issue_number,
+            volume = excluded.volume, title = excluded.title, summary = excluded.summary, released_at = excluded.released_at,
+            writer = excluded.writer, penciller = excluded.penciller, inker = excluded.inker, colorist = excluded.colorist,
+            cover_artist = excluded.cover_artist, publisher = excluded.publisher, page_count = excluded.page_count
+                                           ")?;
 
         let issue_id = stmt.insert(&[
             &info.filepath,
@@ -150,19 +157,21 @@ impl DB {
             stmt.insert(&[&issue_id, comic_info])?;
         }
 
-        conn.execute("delete from page where issue_id = ?", &[&issue_id])?;
-        stmt = conn.prepare_cached("insert into page(issue_id, entry) values (?, ?)")?;
-        for entry in entries {
-            stmt.insert(&[&issue_id, &entry.as_str()])?;
+        if entries.len() > 0 {
+            conn.execute("delete from page where issue_id = ?", &[&issue_id])?;
+            stmt = conn.prepare_cached("insert into page(issue_id, entry) values (?, ?)")?;
+            for entry in entries {
+                stmt.insert(&[&issue_id, &entry.as_str()])?;
+            }
         }
-        Ok(())
+        Ok(issue_id)
     }
 
     // Basically the only time we shouldn't update is if we know
     // that path hasn't be modified since the last mod_time
     pub fn should_update(&self, entry: &DirEntry) -> bool {
         let path: String = entry.path().to_string_lossy().into();
-        let modified = super::entry_modified(entry);
+        let modified = super::entry_modified(entry.path());
 
         if let Ok(conn) = self.pool.get() {
             conn.query_row(
@@ -300,11 +309,21 @@ impl DB {
         super::get_bytes_for_entry(&cover_entry.issue, &cover_entry.entry)
     }
 
-    pub fn mark_read(&self, issue_id: i64, user_id: i64) -> Result<i32, Error> {
+    pub fn mark_read(&self, issue_id: i64, user_id: i64) -> Result<usize, Error> {
         let conn = self.pool.get()?;
         let mut stmt =
             conn.prepare_cached("replace into read(user_id, issue_id, read_at) values(?,?,?)")?;
         Ok(stmt.execute(&[&user_id, &issue_id, &Local::now()])?)
+    }
+
+    /// grabs as user_id given a name.  If you want to check the password use
+    /// check_or_provision_user, this version will raise an error if not found
+    pub fn get_user(&self, username: &str) -> Result<i64, Error> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare_cached(
+            "select rowid from user where username = ?",
+        )?;
+        Ok(stmt.query_row(&[&username], |row| row.get(0))?)
     }
 
     /// either check if the password is correct or make a user with the password

@@ -1,9 +1,11 @@
 My TODOlist for beta (roughly in priorty order)
 
 Functionality:
-- import comicrack Db (probably a seperate binary since we'll do it once)
+* import comicrack Db (probably a seperate binary since we'll do it once)
   - option to update the tag files (need to convert to zip)
 - prune old paths (probably need a seperate binary since we don't want to wipe DB by mistake)
+- pagination of feed
+- unread by title
 
 
 Post Beta:
