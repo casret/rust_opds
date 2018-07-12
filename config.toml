@@ -1,5 +1,5 @@
 addr = "0.0.0.0:6737"
-comics_path = "/Volumes/comics"
+comics_path = "/Users/casret/comics"
 database_path = "comics.db"
 
 [import_comicrack]

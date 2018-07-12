@@ -227,7 +227,7 @@ impl DB {
     pub fn get_unread_series(&self, user_id: i64) -> Result<Vec<String>, Error> {
         let conn = self.pool.get()?;
         let mut stmt =
-            conn.prepare_cached("select distinct series from issue i left join (select issue_id from read where user_id = ?) r on i.rowid = r.issue_id where r.issue_id is null order by released_at")?;
+            conn.prepare_cached("select distinct series from issue i left join (select issue_id from read where user_id = ?) r on i.rowid = r.issue_id where r.issue_id is null order by series")?;
         let mut rows = stmt.query(&[&user_id])?;
         let mut series = Vec::new();
 
