@@ -33,4 +33,4 @@ xml-rs = "0.8"
 zip = "0.4"
 
 [patch.crates-io]
-rusqlite = { git = "https://github.com/casret/rusqlite" }
+rusqlite = { git = "https://github.com/gwenn/rusqlite", rev = 'b0fe8e' }

@@ -425,7 +425,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "libsqlite3-sys"
 version = "0.9.3"
-source = "git+https://github.com/casret/rusqlite#e7451c825f2f712a1a39c5182f57bf6ed798aad3"
+source = "git+https://github.com/gwenn/rusqlite?rev=b0fe8e#b0fe8ea95f3ebb2e74247e7f70e52499d48fd0bb"
 dependencies = [
  "cc 1.0.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.11 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -699,7 +699,7 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "r2d2 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "rusqlite 0.13.0 (git+https://github.com/casret/rusqlite)",
+ "rusqlite 0.13.0 (git+https://github.com/gwenn/rusqlite?rev=b0fe8e)",
 ]
 
 [[package]]
@@ -782,11 +782,11 @@ dependencies = [
 [[package]]
 name = "rusqlite"
 version = "0.13.0"
-source = "git+https://github.com/casret/rusqlite#e7451c825f2f712a1a39c5182f57bf6ed798aad3"
+source = "git+https://github.com/gwenn/rusqlite?rev=b0fe8e#b0fe8ea95f3ebb2e74247e7f70e52499d48fd0bb"
 dependencies = [
  "bitflags 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "libsqlite3-sys 0.9.3 (git+https://github.com/casret/rusqlite)",
+ "libsqlite3-sys 0.9.3 (git+https://github.com/gwenn/rusqlite?rev=b0fe8e)",
  "lru-cache 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -808,7 +808,7 @@ dependencies = [
  "r2d2_sqlite 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rusqlite 0.13.0 (git+https://github.com/casret/rusqlite)",
+ "rusqlite 0.13.0 (git+https://github.com/gwenn/rusqlite?rev=b0fe8e)",
  "serde 1.0.70 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde-xml-rs 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.70 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1364,7 +1364,7 @@ dependencies = [
 "checksum lazycell 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a6f08839bc70ef4a3fe1d566d5350f519c5912ea86be0df1740a7d247c7fc0ef"
 "checksum libc 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)" = "e32a70cf75e5846d53a673923498228bbec6a8624708a9ea5645f075d6276122"
 "checksum libc 0.2.42 (registry+https://github.com/rust-lang/crates.io-index)" = "b685088df2b950fccadf07a7187c8ef846a959c142338a48f9dc0b94517eb5f1"
-"checksum libsqlite3-sys 0.9.3 (git+https://github.com/casret/rusqlite)" = "<none>"
+"checksum libsqlite3-sys 0.9.3 (git+https://github.com/gwenn/rusqlite?rev=b0fe8e)" = "<none>"
 "checksum linked-hash-map 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7860ec297f7008ff7a1e3382d7f7e1dcd69efc94751a2284bafc3d013c2aa939"
 "checksum log 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "e19e8d5c34a3e0e2223db8e060f9e8264aeeb5c5fc64a4ee9965c062211c024b"
 "checksum log 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "6fddaa003a65722a7fb9e26b0ce95921fe4ba590542ced664d8ce2fa26f9f3ac"
@@ -1407,7 +1407,7 @@ dependencies = [
 "checksum regex 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "13c93d55961981ba9226a213b385216f83ab43bd6ac53ab16b2eeb47e337cf4e"
 "checksum regex-syntax 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "f9ec002c35e86791825ed294b50008eea9ddfc8def4420124fbc6b08db834957"
 "checksum regex-syntax 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)" = "05b06a75f5217880fc5e905952a42750bf44787e56a6c6d6852ed0992f5e1d54"
-"checksum rusqlite 0.13.0 (git+https://github.com/casret/rusqlite)" = "<none>"
+"checksum rusqlite 0.13.0 (git+https://github.com/gwenn/rusqlite?rev=b0fe8e)" = "<none>"
 "checksum rustc-demangle 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "76d7ba1feafada44f2d38eed812bd2489a03c0f5abb975799251518b68848649"
 "checksum rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)" = "dcf128d1287d2ea9d80910b5f1120d0b8eede3fbf1abe91c40d39ea7d51e6fda"
 "checksum safemem 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e27a8b19b835f7aea908818e871f5cc3a5a186550c30773be987e155e8163d8f"
