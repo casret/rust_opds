@@ -114,7 +114,21 @@ impl DB {
             &[],
         )?;
 
+        conn.execute(
+            "
+          ANALYZE
+          ",
+            &[],
+        )?;
+
         Ok(DB { pool })
+    }
+
+
+    pub fn analyze(&self) -> Result<(), Error> {
+        let conn = self.pool.get()?;
+        conn.execute( "ANALYZE", &[])?;
+        Ok(())
     }
 
     pub fn store_comic(&self, info: &ComicInfo, entries: &[String]) -> Result<i64, Error> {

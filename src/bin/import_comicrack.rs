@@ -82,6 +82,8 @@ fn main() -> Result<(), Error> {
             book_buf.clear();
         }
     }
+
+    db.analyze();
     Ok(())
 }
 

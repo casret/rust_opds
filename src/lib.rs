@@ -216,6 +216,7 @@ fn scan_dir(dir: &Path, db: &Arc<db::DB>) -> Result<(), Error> {
             Err(e) => error!("Skipping {}: {}", entry.path().display(), e),
         }
     }
+    db.analyze()?;
     Ok(())
 }
 
