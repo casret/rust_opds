@@ -78,14 +78,15 @@ impl<'a> OpdsEntry<'a> {
         content: &'a str,
         authors: Vec<&'a str>,
         links: Vec<OpdsLink<'a>>,
+        updated: DateTime<Utc>,
     ) -> OpdsEntry<'a> {
         OpdsEntry {
             id: Cow::Owned(get_uuid_id()),
-            updated: Utc::now(),
             title: Cow::Borrowed(title),
             content: Cow::Borrowed(content),
             authors,
             links,
+            updated,
         }
     }
 }
@@ -133,7 +134,7 @@ pub fn make_acquisition_feed(
 pub fn make_subsection_feed(
     url_prefix: &str,
     title: &str,
-    subs: &mut Vec<String>,
+    subs: &mut Vec<(String, DateTime<Utc>)>,
 ) -> Result<String, Error> {
     let links = vec![
         OpdsLink {
@@ -152,18 +153,20 @@ pub fn make_subsection_feed(
 
     let entries = subs.iter_mut()
         .map(|sub| {
-            let url = utf8_percent_encode(&format!("{}/{}", url_prefix, sub), DEFAULT_ENCODE_SET)
+            let url = utf8_percent_encode(&format!("{}/{}", url_prefix, sub.0), DEFAULT_ENCODE_SET)
                 .to_string();
             OpdsEntry::new(
-                sub,
-                sub,
+                &sub.0,
+                &sub.0,
                 Vec::new(),
                 vec![OpdsLink {
                     link_type: LinkType::Navigation,
                     rel: Rel::Subsection,
                     url: Cow::Owned(url),
                     count: None,
-                }],
+                },
+                ],
+                sub.1
             )
         })
         .collect();
@@ -204,6 +207,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
                 url: Cow::Borrowed("/all"),
                 count: None,
             }],
+            Utc::now(),
         ),
         OpdsEntry::new(
             "Recent comics",
@@ -215,6 +219,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
                 url: Cow::Borrowed("/recent"),
                 count: None,
             }],
+            Utc::now(),
         ),
         OpdsEntry::new(
             "comics by publisher",
@@ -226,6 +231,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
                 url: Cow::Borrowed("/publishers"),
                 count: None,
             }],
+            Utc::now(),
         ),
         OpdsEntry::new(
             "All unread comics",
@@ -237,6 +243,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
                 url: Cow::Borrowed("/unread_all"),
                 count: None,
             }],
+            Utc::now(),
         ),
         OpdsEntry::new(
             "Unread comics by Series",
@@ -248,6 +255,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
                 url: Cow::Borrowed("/unread"),
                 count: None,
             }],
+            Utc::now(),
         ),
     ];
 

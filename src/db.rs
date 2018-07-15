@@ -157,7 +157,7 @@ impl DB {
             stmt.insert(&[&issue_id, comic_info])?;
         }
 
-        if entries.len() > 0 {
+        if !entries.is_empty() {
             conn.execute("delete from page where issue_id = ?", &[&issue_id])?;
             stmt = conn.prepare_cached("insert into page(issue_id, entry) values (?, ?)")?;
             for entry in entries {
@@ -224,16 +224,17 @@ impl DB {
         Ok(retval)
     }
 
-    pub fn get_unread_series(&self, user_id: i64) -> Result<Vec<String>, Error> {
+    pub fn get_unread_series(&self, user_id: i64) -> Result<Vec<(String, DateTime<Utc>)>, Error> {
         let conn = self.pool.get()?;
         let mut stmt =
-            conn.prepare_cached("select distinct series from issue i left join (select issue_id from read where user_id = ?) r on i.rowid = r.issue_id where r.issue_id is null order by series")?;
+            conn.prepare_cached("select series, max(modified_at) from issue i left join (select issue_id from read where user_id = ?) r on i.rowid = r.issue_id where r.issue_id is null group by 1 order by series")?;
         let mut rows = stmt.query(&[&user_id])?;
         let mut series = Vec::new();
 
         while let Some(row) = rows.next() {
-            let s: Option<String> = row?.get(0);
-            series.push(s.unwrap_or_else(|| "None".to_owned()));
+            let row = row?;
+            let s: Option<String> = row.get(0);
+            series.push((s.unwrap_or_else(|| "None".to_owned()), row.get(1)));
         }
         Ok(series)
     }
@@ -260,31 +261,33 @@ impl DB {
     }
 
 
-    pub fn get_publishers(&self) -> Result<Vec<String>, Error> {
+    pub fn get_publishers(&self) -> Result<Vec<(String, DateTime<Utc>)>, Error> {
         let conn = self.pool.get()?;
-        let mut stmt = conn.prepare_cached("select distinct publisher from issue")?;
+        let mut stmt = conn.prepare_cached("select publisher, max(modified_at) from issue group by 1")?;
         let mut rows = stmt.query(&[])?;
 
         let mut pubs = Vec::new();
 
         while let Some(row) = rows.next() {
-            let publisher: Option<String> = row?.get(0);
-            pubs.push(publisher.unwrap_or_else(|| "None".to_owned()));
+            let row = row?;
+            let publisher: Option<String> = row.get(0);
+            pubs.push((publisher.unwrap_or_else(|| "None".to_owned()), row.get(1)));
         }
         Ok(pubs)
     }
 
-    pub fn get_series_for_publisher(&self, publisher: &str) -> Result<Vec<String>, Error> {
+    pub fn get_series_for_publisher(&self, publisher: &str) -> Result<Vec<(String, DateTime<Utc>)>, Error> {
         let conn = self.pool.get()?;
         let mut stmt =
-            conn.prepare_cached("select distinct series from issue where publisher = ?")?;
+            conn.prepare_cached("select series, max(modified_at) from issue where publisher = ? group by 1")?;
         let mut rows = stmt.query(&[&publisher])?;
 
         let mut series = Vec::new();
 
         while let Some(row) = rows.next() {
-            let publisher: Option<String> = row?.get(0);
-            series.push(publisher.unwrap_or_else(|| "None".to_owned()));
+            let row = row?;
+            let publisher: Option<String> = row.get(0);
+            series.push((publisher.unwrap_or_else(|| "None".to_owned()), row.get(1)));
         }
         Ok(series)
     }
@@ -342,7 +345,7 @@ impl DB {
 
         if page_id < entries.len() {
             if page_id + 3 > entries.len() {
-                self.mark_read(issue_id, user_id); // Ignore the error
+                self.mark_read(issue_id, user_id).ok(); // Ignore the error
             }
             super::get_bytes_for_entry(&entries[page_id].issue, &entries[page_id].entry)
         } else {

@@ -33,6 +33,7 @@ struct Book {
 /// Utility to import in the comicrack database.  As currently written
 /// it is meant to run once, right after the initial import of the comic database,
 /// overwriting any metadata in the DB.
+#[allow(trivial_regex)]
 fn main() -> Result<(), Error> {
     env_logger::init();
 
