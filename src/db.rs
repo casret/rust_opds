@@ -321,28 +321,33 @@ impl DB {
         Ok(stmt.query_row(&[&id], row_to_entry)?)
     }
 
-    pub fn get_cover_for(&self, id: i64) -> Result<Vec<u8>, Error> {
+    pub fn get_page(&self, issue_id: i64, page_id: i32, user_id: i64) -> Result<Vec<u8>, Error> {
         #[derive(Default)]
         struct Entry {
             issue: String,
             entry: String,
         };
 
+        let page_id:usize = page_id as usize;
+
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare_cached("select i.filepath, p.entry from issue i, page p where i.rowid = p.issue_id and i.rowid = ? order by p.entry")?;
-        let iter = stmt.query_map(&[&id], |r| Entry {
+        let iter = stmt.query_map(&[&issue_id], |r| Entry {
             issue: r.get(0),
             entry: r.get(1),
         })?;
-        let cover_entry = iter.map(|e| e.unwrap_or_default())
-            .find(|e| e.entry.ends_with("jpg"));
 
-        let cover_entry = match cover_entry {
-            None => return Err(::failure::err_msg("No cover")),
-            Some(e) => e,
-        };
+        let entries:Vec<Entry> = iter.map(|e| e.unwrap_or_default())
+            .filter(|e| e.entry.ends_with("jpg")).collect();
 
-        super::get_bytes_for_entry(&cover_entry.issue, &cover_entry.entry)
+        if page_id < entries.len() {
+            if page_id + 3 > entries.len() {
+                self.mark_read(issue_id, user_id); // Ignore the error
+            }
+            super::get_bytes_for_entry(&entries[page_id].issue, &entries[page_id].entry)
+        } else {
+            Err(::failure::err_msg("No such page"))
+        }
     }
 
     pub fn mark_read(&self, issue_id: i64, user_id: i64) -> Result<usize, Error> {

@@ -53,16 +53,7 @@ fn parse_auth_header(auth: &str) -> Option<(String, String)> {
 
 // TODO: figure out Stream
 fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
-    lazy_static! {
-        static ref COMIC_RE: Regex = Regex::new(r"/comic/(\d+)/").unwrap();
-        static ref COVER_RE: Regex = Regex::new(r"/cover/(\d+)/").unwrap();
-        static ref PUBLISHER_RE: Regex = Regex::new(r"/publishers/(.*)").unwrap();
-        static ref SERIES_RE: Regex = Regex::new(r"/publishers/(.*)/(.*)").unwrap();
-        static ref UNREAD_RE: Regex = Regex::new(r"/unread/(.*)").unwrap();
-    }
-
-    // Why doesn't hyper do this for me?
-    let path: &str = &percent_decode(req.uri().path().as_bytes()).decode_utf8_lossy();
+    debug!("Handling request {:#?}", req);
     let user_id = match req.headers().get(header::AUTHORIZATION) {
         None => {
             return unauthorized();
@@ -81,79 +72,98 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
         }
     };
 
-    info!("Got user {}", user_id);
+    // Why doesn't hyper do this for me?
+    let path = &percent_decode(req.uri().path().as_bytes()).decode_utf8_lossy();
+    let mut path_parts = path.split('/');
+    path_parts.next(); // first part is always empty
 
-    match (req.method(), path) {
-        (&Method::GET, "/") | (&Method::GET, "/index.html") => {
+    match (req.method(), path_parts.next()) {
+        (&Method::GET, None) | (&Method::GET, Some("")) => {
             let body = Body::from(opds::make_navigation_feed().unwrap());
             Box::new(future::ok(Response::new(body)))
         }
-        (&Method::GET, "/all") => {
+        (&Method::GET, Some("all")) => {
             let entries = db.get_all().unwrap();
             let body =
                 Body::from(opds::make_acquisition_feed("/all", "All Comics", &entries).unwrap());
             Box::new(future::ok(Response::new(body)))
         }
-        (&Method::GET, "/recent") => {
+        (&Method::GET, Some("recent")) => {
             let entries = db.get_recent().unwrap();
             let body = Body::from(
                 opds::make_acquisition_feed("/recent", "Recent Comics", &entries).unwrap(),
             );
             Box::new(future::ok(Response::new(body)))
         }
-        (&Method::GET, path) if SERIES_RE.is_match(path) => {
-            let publisher = &SERIES_RE.captures(path).unwrap()[1];
-            let series = &SERIES_RE.captures(path).unwrap()[2];
-            let entries = db.get_for_publisher_series(&publisher, &series).unwrap();
-            let body = Body::from(opds::make_acquisition_feed(path, series, &entries).unwrap());
+        (&Method::GET, Some("publishers")) => {
+            let body = match path_parts.next() {
+                Some(publisher) => match path_parts.next() {
+                    Some(series) => {
+                        let entries = db.get_for_publisher_series(&publisher, &series).unwrap();
+                        Body::from(opds::make_acquisition_feed(path, series, &entries).unwrap())
+                    },
+                    None => {
+                        let mut entries = db.get_series_for_publisher(&publisher).unwrap();
+                        Body::from(opds::make_subsection_feed(path, publisher, &mut entries).unwrap())
+                    },
+                },
+                None => {
+                    let mut entries = db.get_publishers().unwrap();
+                    Body::from(
+                        opds::make_subsection_feed("/publishers", "Comics by publisher", &mut entries)
+                        .unwrap(),
+                        )
+                }
+            };
             Box::new(future::ok(Response::new(body)))
         }
-        (&Method::GET, path) if PUBLISHER_RE.is_match(path) => {
-            let publisher = &PUBLISHER_RE.captures(path).unwrap()[1];
-            let mut entries = db.get_series_for_publisher(&publisher).unwrap();
-            let body =
-                Body::from(opds::make_subsection_feed(path, publisher, &mut entries).unwrap());
-            Box::new(future::ok(Response::new(body)))
-        }
-        (&Method::GET, path) if UNREAD_RE.is_match(path) => {
-            let series = &UNREAD_RE.captures(path).unwrap()[1];
-            let mut entries = db.get_unread_for_series(user_id, &series).unwrap();
-            let body = Body::from(opds::make_acquisition_feed(path, series, &entries).unwrap());
-            Box::new(future::ok(Response::new(body)))
-        }
-        (&Method::GET, "/publishers") => {
-            let mut entries = db.get_publishers().unwrap();
-            let body = Body::from(
-                opds::make_subsection_feed("/publishers", "Comics by publisher", &mut entries)
+        (&Method::GET, Some("unread")) => {
+            let body = match path_parts.next() {
+                Some(series) => {
+                    let mut entries = db.get_unread_for_series(user_id, &series).unwrap();
+                    Body::from(opds::make_acquisition_feed(path, series, &entries).unwrap())
+                }
+                None => {
+                    let mut entries = db.get_unread_series(user_id).unwrap();
+                    Body::from(
+                        opds::make_subsection_feed("/unread", "Unread comics by series", &mut entries)
                     .unwrap(),
-            );
+                    )
+                }
+            };
             Box::new(future::ok(Response::new(body)))
         }
-        (&Method::GET, "/unread") => {
-            let mut entries = db.get_unread_series(user_id).unwrap();
-            let body = Body::from(
-                opds::make_subsection_feed("/unread", "Unread comics by series", &mut entries)
-                    .unwrap(),
-            );
-            Box::new(future::ok(Response::new(body)))
-        }
-        (&Method::GET, "/unread_all") => {
+        (&Method::GET, Some("unread_all")) => {
             let entries = db.get_unread(user_id).unwrap();
             let body = Body::from(
                 opds::make_acquisition_feed("/unread", "Unread Comics", &entries).unwrap(),
             );
             Box::new(future::ok(Response::new(body)))
         }
-        (&Method::GET, path) if COMIC_RE.is_match(path) => {
-            let id = COMIC_RE.captures(path).unwrap()[1].parse::<i64>().unwrap();
-            let entry = db.get(id).unwrap();
-            db.mark_read(id, user_id).unwrap();
-            simple_file_send(&entry.filepath)
+        (&Method::GET, Some("comic")) => {
+            match path_parts.next() {
+                Some(id) => {
+                    let id = id.parse::<i64>().unwrap();
+                    let entry = db.get(id).unwrap();
+                    db.mark_read(id, user_id).unwrap();
+                    simple_file_send(&entry.filepath)
+                },
+                _ => not_found()
+            }
         }
-        (&Method::GET, path) if COVER_RE.is_match(path) => {
-            let id = COVER_RE.captures(path).unwrap()[1].parse::<i64>().unwrap();
-            let body = Body::from(db.get_cover_for(id).unwrap());
-            Box::new(future::ok(Response::new(body)))
+        (&Method::GET, Some("stream")) => {
+            match path_parts.next() {
+                Some(issue_id) => match path_parts.next() {
+                    Some(page_id) => {
+                        let issue_id = issue_id.parse::<i64>().unwrap();
+                        let page_id = page_id.parse::<i32>().unwrap();
+                        let body = Body::from(db.get_page(issue_id, page_id, user_id).unwrap());
+                        Box::new(future::ok(Response::new(body)))
+                    }
+                    _ => not_found()
+                },
+                _ => not_found()
+            }
         }
         _ => not_found(),
     }

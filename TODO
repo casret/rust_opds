@@ -7,7 +7,6 @@ Post Beta:
 - make DB and xml generation async (fast enough, and probably most use cases won't need high concurrency)
   - I think I can just wrap them in blocking futures
 - transcode comics to webp (70 quality seems to be sweet spot)
-- support streaming extension (http://vaemendis.net/opds-pse/)
 - database migrations
 - search
 - basic admin page

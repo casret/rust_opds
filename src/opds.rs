@@ -17,6 +17,7 @@ pub enum Rel {
     Image,
     Thumbnail,
     Acquisition,
+    Stream,
 }
 
 impl Rel {
@@ -29,6 +30,7 @@ impl Rel {
             Rel::Image => "http://opds-spec.org/image",
             Rel::Thumbnail => "http://opds-spec.org/image/thumbnail",
             Rel::Acquisition => "http://opds-spec.org/acquisition",
+            Rel::Stream => "http://vaemendis.net/opds-pse/stream",
         }
     }
 }
@@ -57,6 +59,7 @@ struct OpdsLink<'a> {
     link_type: LinkType,
     rel: Rel,
     url: Cow<'a, str>,
+    count: Option<i32>,
 }
 
 #[derive(Debug)]
@@ -106,11 +109,13 @@ pub fn make_acquisition_feed(
             link_type: LinkType::Acquisition,
             rel: Rel::RelSelf,
             url: Cow::Borrowed(url),
+            count: None,
         },
         OpdsLink {
             link_type: LinkType::Navigation,
             rel: Rel::Start,
             url: Cow::Borrowed("/"),
+            count: None,
         },
     ];
     let entries = entries.into_iter().map(|e| make_entry(e)).collect();
@@ -135,11 +140,13 @@ pub fn make_subsection_feed(
             link_type: LinkType::Navigation,
             rel: Rel::RelSelf,
             url: Cow::Borrowed(url_prefix),
+            count: None,
         },
         OpdsLink {
             link_type: LinkType::Navigation,
             rel: Rel::Start,
             url: Cow::Borrowed("/"),
+            count: None,
         },
     ];
 
@@ -155,6 +162,7 @@ pub fn make_subsection_feed(
                     link_type: LinkType::Navigation,
                     rel: Rel::Subsection,
                     url: Cow::Owned(url),
+                    count: None,
                 }],
             )
         })
@@ -175,11 +183,13 @@ pub fn make_navigation_feed() -> Result<String, Error> {
             link_type: LinkType::Navigation,
             rel: Rel::RelSelf,
             url: Cow::Borrowed("/"),
+            count: None,
         },
         OpdsLink {
             link_type: LinkType::Navigation,
             rel: Rel::Start,
             url: Cow::Borrowed("/"),
+            count: None,
         },
     ];
 
@@ -192,6 +202,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
                 link_type: LinkType::Acquisition,
                 rel: Rel::Subsection,
                 url: Cow::Borrowed("/all"),
+                count: None,
             }],
         ),
         OpdsEntry::new(
@@ -202,6 +213,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
                 link_type: LinkType::Acquisition,
                 rel: Rel::SortNew,
                 url: Cow::Borrowed("/recent"),
+                count: None,
             }],
         ),
         OpdsEntry::new(
@@ -212,6 +224,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
                 link_type: LinkType::Navigation,
                 rel: Rel::SortNew,
                 url: Cow::Borrowed("/publishers"),
+                count: None,
             }],
         ),
         OpdsEntry::new(
@@ -222,6 +235,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
                 link_type: LinkType::Acquisition,
                 rel: Rel::Subsection,
                 url: Cow::Borrowed("/unread_all"),
+                count: None,
             }],
         ),
         OpdsEntry::new(
@@ -232,6 +246,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
                 link_type: LinkType::Navigation,
                 rel: Rel::Subsection,
                 url: Cow::Borrowed("/unread"),
+                count: None,
             }],
         ),
     ];
@@ -271,17 +286,26 @@ fn make_entry(entry: &ComicInfo) -> OpdsEntry {
         OpdsLink {
             link_type: LinkType::Jpeg,
             rel: Rel::Image,
-            url: Cow::Owned(format!("/cover/{}/cover.jpg", entry.id.unwrap_or(0))),
+            url: Cow::Owned(format!("/stream/{}/0/cover.jpg", entry.id.unwrap_or(0))),
+            count: None,
         },
         OpdsLink {
             link_type: LinkType::Jpeg,
             rel: Rel::Thumbnail,
-            url: Cow::Owned(format!("/cover/{}/cover.jpg", entry.id.unwrap_or(0))),
+            url: Cow::Owned(format!("/stream/{}/0/cover.jpg", entry.id.unwrap_or(0))),
+            count: None,
         },
         OpdsLink {
             link_type: LinkType::OctetStream,
             rel: Rel::Acquisition,
             url: Cow::Owned(format!("{}/download/{}", url_prefix, filename)),
+            count: None,
+        },
+        OpdsLink {
+            link_type: LinkType::Jpeg,
+            rel: Rel::Stream,
+            url: Cow::Owned(format!("/stream/{}/{{pageNumber}}", entry.id.unwrap_or(0))),
+            count: entry.page_count,
         },
     ];
 
@@ -312,15 +336,23 @@ fn write_links<W: Write>(writer: &mut EventWriter<W>, links: &[OpdsLink]) -> Res
         static ref TYPE_NAME: Name<'static> = Name::local("type");
         static ref REL_NAME: Name<'static> = Name::local("rel");
         static ref HREF_NAME: Name<'static> = Name::local("href");
+        static ref COUNT_NAME: Name<'static> = Name::prefixed("count", "pse");
     }
 
     for link in links.iter() {
-        writer.write(
-            XmlEvent::start_element("link")
-                .attr(*TYPE_NAME, link.link_type.as_str())
-                .attr(*REL_NAME, link.rel.as_str())
-                .attr(*HREF_NAME, &link.url),
-        )?;
+        let mut event = XmlEvent::start_element("link")
+            .attr(*TYPE_NAME, link.link_type.as_str())
+            .attr(*REL_NAME, link.rel.as_str())
+            .attr(*HREF_NAME, &link.url);
+
+        let count_str;
+
+        let event = match link.count {
+            Some(count) => { count_str = count.to_string(); event.attr(*COUNT_NAME, &count_str) },
+            None => event
+        };
+
+        writer.write(event)?;
         writer.write(XmlEvent::end_element())?;
     }
     Ok(())
@@ -332,7 +364,8 @@ fn write_opds(opds: &OpdsFeed) -> Result<String, Error> {
     writer.write(
         XmlEvent::start_element("feed")
             .default_ns("http://www.w3.org/2005/Atom")
-            .ns("opds", "http://opds-spec.org/2010/catalog"),
+            .ns("opds", "http://opds-spec.org/2010/catalog")
+            .ns("pse", "http://vaemendis.net/opds-pse/ns"),
     )?;
 
     writer.write(XmlEvent::start_element("id"))?;
