@@ -1,5 +1,6 @@
 use super::db::DB;
 use super::opds;
+use super::Config;
 use failure::Error;
 use futures::{future, Future};
 use hyper::header;
@@ -7,7 +8,6 @@ use hyper::service::service_fn;
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 use regex::Regex;
 use std::io;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use url::percent_encoding::percent_decode;
 
@@ -52,7 +52,7 @@ fn parse_auth_header(auth: &str) -> Option<(String, String)> {
 }
 
 // TODO: figure out Stream
-fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
+fn serve_opds(req: &Request<Body>, db: &DB, config: &Config) -> ResponseFuture {
     debug!("Handling request {:#?}", req);
     let user_id = match req.headers().get(header::AUTHORIZATION) {
         None => {
@@ -79,19 +79,19 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
 
     match (req.method(), path_parts.next()) {
         (&Method::GET, None) | (&Method::GET, Some("")) => {
-            let body = Body::from(opds::make_navigation_feed().unwrap());
+            let body = Body::from(opds::make_navigation_feed(config).unwrap());
             Box::new(future::ok(Response::new(body)))
         }
         (&Method::GET, Some("all")) => {
             let entries = db.get_all().unwrap();
             let body =
-                Body::from(opds::make_acquisition_feed("/all", "All Comics", &entries).unwrap());
+                Body::from(opds::make_acquisition_feed(config, "/all", "All Comics", &entries).unwrap());
             Box::new(future::ok(Response::new(body)))
         }
         (&Method::GET, Some("recent")) => {
             let entries = db.get_recent().unwrap();
             let body = Body::from(
-                opds::make_acquisition_feed("/recent", "Recent Comics", &entries).unwrap(),
+                opds::make_acquisition_feed(config, "/recent", "Recent Comics", &entries).unwrap(),
             );
             Box::new(future::ok(Response::new(body)))
         }
@@ -100,17 +100,17 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
                 Some(publisher) => match path_parts.next() {
                     Some(series) => {
                         let entries = db.get_for_publisher_series(&publisher, &series).unwrap();
-                        Body::from(opds::make_acquisition_feed(path, series, &entries).unwrap())
+                        Body::from(opds::make_acquisition_feed(config, path, series, &entries).unwrap())
                     },
                     None => {
                         let mut entries = db.get_series_for_publisher(&publisher).unwrap();
-                        Body::from(opds::make_subsection_feed(path, publisher, &mut entries).unwrap())
+                        Body::from(opds::make_subsection_feed(config, path, publisher, &mut entries).unwrap())
                     },
                 },
                 None => {
                     let mut entries = db.get_publishers().unwrap();
                     Body::from(
-                        opds::make_subsection_feed("/publishers", "Comics by publisher", &mut entries)
+                        opds::make_subsection_feed(config, "/publishers", "Comics by publisher", &mut entries)
                         .unwrap(),
                         )
                 }
@@ -121,12 +121,12 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
             let body = match path_parts.next() {
                 Some(series) => {
                     let mut entries = db.get_unread_for_series(user_id, &series).unwrap();
-                    Body::from(opds::make_acquisition_feed(path, series, &entries).unwrap())
+                    Body::from(opds::make_acquisition_feed(config, path, series, &entries).unwrap())
                 }
                 None => {
                     let mut entries = db.get_unread_series(user_id).unwrap();
                     Body::from(
-                        opds::make_subsection_feed("/unread", "Unread comics by series", &mut entries)
+                        opds::make_subsection_feed(config, "/unread", "Unread comics by series", &mut entries)
                     .unwrap(),
                     )
                 }
@@ -136,7 +136,7 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
         (&Method::GET, Some("unread_all")) => {
             let entries = db.get_unread(user_id).unwrap();
             let body = Body::from(
-                opds::make_acquisition_feed("/unread", "Unread Comics", &entries).unwrap(),
+                opds::make_acquisition_feed(config, "/unread", "Unread Comics", &entries).unwrap(),
             );
             Box::new(future::ok(Response::new(body)))
         }
@@ -169,17 +169,19 @@ fn serve_opds(req: &Request<Body>, db: &DB) -> ResponseFuture {
     }
 }
 
-pub fn start_web_service(db: Arc<DB>, addr: SocketAddr) -> Result<(), Error> {
+pub fn start_web_service(db: Arc<DB>, config: Arc<Config>) -> Result<(), Error> {
+    let inner_config = config.clone();
     let new_svc = move || {
         let db = db.clone();
-        service_fn(move |req| serve_opds(&req, &db))
+        let config = inner_config.clone();
+        service_fn(move |req| serve_opds(&req, &db, &config))
     };
 
-    let server = Server::bind(&addr)
+    let server = Server::bind(&config.addr)
         .serve(new_svc)
         .map_err(|e| eprintln!("server error: {}", e));
 
-    info!("Starting server on {}", addr);
+    info!("Starting server on {}", config.addr);
     // Run this server for... forever!
     ::hyper::rt::run(server);
     Ok(())

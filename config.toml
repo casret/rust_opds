@@ -1,6 +1,7 @@
 addr = "0.0.0.0:6737"
 comics_path = "/Users/casret/comics"
 database_path = "comics.db"
+tag_authority = "example@example.com,2018" # Stick your email or domain name in here, keep the 2018
 
 [import_comicrack]
 strip_prefix = "Y:\\" # Take this off before mapping file to comics_path

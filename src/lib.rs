@@ -50,6 +50,7 @@ pub struct Config {
     addr: SocketAddr,
     pub comics_path: PathBuf,
     pub database_path: PathBuf,
+    pub tag_authority: String,
     pub import_comicrack: Option<ImportConfig>,
 }
 
@@ -157,15 +158,16 @@ impl ComicInfo {
     }
 }
 
-pub fn run(config: &Config) -> Result<(), Error> {
+pub fn run(config: Config) -> Result<(), Error> {
     let db = Arc::new(db::DB::new(config.database_path.as_path())?);
+    let config = Arc::new(config);
     let scan_db = Arc::clone(&db);
     let comics_path = config.comics_path.clone();
     thread::spawn(move || match scan_dir(comics_path.as_path(), &scan_db) {
         Err(e) => error!("Error scanning: {}, {}", e, e.backtrace()),
         _ => info!("Done scanning directory"),
     });
-    web::start_web_service(Arc::clone(&db), config.addr)?;
+    web::start_web_service(Arc::clone(&db), config)?;
     Ok(())
 }
 

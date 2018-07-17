@@ -14,6 +14,6 @@ fn main() -> Result<(), Error> {
     file.read_to_string(&mut contents)?;
     let config: Config = toml::from_str(&contents)?;
     env_logger::init();
-    rust_opds::run(&config)?;
+    rust_opds::run(config)?;
     Ok(())
 }

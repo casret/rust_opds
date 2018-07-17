@@ -1,10 +1,10 @@
 use super::ComicInfo;
+use super::Config;
 use chrono::prelude::*;
 use failure::Error;
 use std::borrow::Cow;
 use std::io::prelude::*;
 use url::percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
-use uuid::Uuid;
 use xml::name::Name;
 use xml::writer::{EventWriter, XmlEvent};
 
@@ -64,7 +64,7 @@ struct OpdsLink<'a> {
 
 #[derive(Debug)]
 struct OpdsEntry<'a> {
-    id: Cow<'a, str>,
+    id: String,
     updated: DateTime<Utc>,
     title: Cow<'a, str>,
     content: Cow<'a, str>,
@@ -74,6 +74,7 @@ struct OpdsEntry<'a> {
 
 impl<'a> OpdsEntry<'a> {
     fn new(
+        id: String,
         title: &'a str,
         content: &'a str,
         authors: Vec<&'a str>,
@@ -81,7 +82,7 @@ impl<'a> OpdsEntry<'a> {
         updated: DateTime<Utc>,
     ) -> OpdsEntry<'a> {
         OpdsEntry {
-            id: Cow::Owned(get_uuid_id()),
+            id,
             title: Cow::Borrowed(title),
             content: Cow::Borrowed(content),
             authors,
@@ -93,18 +94,25 @@ impl<'a> OpdsEntry<'a> {
 
 #[derive(Debug)]
 struct OpdsFeed<'a> {
-    id: &'a str,
+    id: String,
     title: &'a str,
     entries: Vec<OpdsEntry<'a>>,
     links: Vec<OpdsLink<'a>>,
     updated: DateTime<Utc>,
 }
 
+fn make_id_from_url(tag_authority: &str, url: &str) -> String {
+    format!("tag:{}:{}", tag_authority, url.trim_left_matches("/").replace("/", ":"))
+}
+
+
 pub fn make_acquisition_feed(
+    config: &Config,
     url: &str,
     title: &str,
     entries: &[ComicInfo],
 ) -> Result<String, Error> {
+    let id = make_id_from_url(&config.tag_authority, url);
     let links = vec![
         OpdsLink {
             link_type: LinkType::Acquisition,
@@ -119,10 +127,10 @@ pub fn make_acquisition_feed(
             count: None,
         },
     ];
-    let entries = entries.into_iter().map(|e| make_entry(e)).collect();
+    let entries = entries.into_iter().map(|e| make_entry(&config.tag_authority, e)).collect();
 
     let feed = OpdsFeed {
-        id: &get_uuid_id(),
+        id,
         title,
         updated: Utc::now(),
         links,
@@ -132,10 +140,12 @@ pub fn make_acquisition_feed(
 }
 
 pub fn make_subsection_feed(
+    config: &Config,
     url_prefix: &str,
     title: &str,
     subs: &mut Vec<(String, DateTime<Utc>)>,
 ) -> Result<String, Error> {
+    let id = make_id_from_url(&config.tag_authority, url_prefix);
     let links = vec![
         OpdsLink {
             link_type: LinkType::Navigation,
@@ -155,7 +165,9 @@ pub fn make_subsection_feed(
         .map(|sub| {
             let url = utf8_percent_encode(&format!("{}/{}", url_prefix, sub.0), DEFAULT_ENCODE_SET)
                 .to_string();
+            let id = make_id_from_url(&config.tag_authority, &url);
             OpdsEntry::new(
+                id,
                 &sub.0,
                 &sub.0,
                 Vec::new(),
@@ -172,7 +184,7 @@ pub fn make_subsection_feed(
         .collect();
 
     let feed = OpdsFeed {
-        id: &get_uuid_id(),
+        id,
         title: &title,
         updated: Utc::now(),
         links,
@@ -180,7 +192,8 @@ pub fn make_subsection_feed(
     };
     write_opds(&feed)
 }
-pub fn make_navigation_feed() -> Result<String, Error> {
+pub fn make_navigation_feed(config: &Config) -> Result<String, Error> {
+    let id = format!("tag:{}:top", config.tag_authority);
     let links = vec![
         OpdsLink {
             link_type: LinkType::Navigation,
@@ -198,6 +211,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
 
     let entries = vec![
         OpdsEntry::new(
+            format!("tag:{}:all", config.tag_authority),
             "All comics",
             "All comics as a flat list",
             Vec::new(),
@@ -210,6 +224,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
             Utc::now(),
         ),
         OpdsEntry::new(
+            format!("tag:{}:recent", config.tag_authority),
             "Recent comics",
             "All comics sorted by recency",
             Vec::new(),
@@ -222,6 +237,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
             Utc::now(),
         ),
         OpdsEntry::new(
+            format!("tag:{}:publishers", config.tag_authority),
             "comics by publisher",
             "All comics sorted by publisher",
             Vec::new(),
@@ -234,6 +250,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
             Utc::now(),
         ),
         OpdsEntry::new(
+            format!("tag:{}:unread_all", config.tag_authority),
             "All unread comics",
             "All unread comics sorted by published date",
             Vec::new(),
@@ -246,6 +263,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
             Utc::now(),
         ),
         OpdsEntry::new(
+            format!("tag:{}:unread", config.tag_authority),
             "Unread comics by Series",
             "Unread comics by Series",
             Vec::new(),
@@ -260,7 +278,7 @@ pub fn make_navigation_feed() -> Result<String, Error> {
     ];
 
     let feed = OpdsFeed {
-        id: &get_uuid_id(),
+        id,
         title: "Rust OPDS",
         updated: Utc::now(),
         links,
@@ -269,7 +287,8 @@ pub fn make_navigation_feed() -> Result<String, Error> {
     write_opds(&feed)
 }
 
-fn make_entry(entry: &ComicInfo) -> OpdsEntry {
+fn make_entry<'a>(tag_authority: &str, entry: &'a ComicInfo) -> OpdsEntry<'a> {
+    let id = format!("tag:{}:entry:{}", tag_authority, entry.id.unwrap_or(0));
     let mut authors: Vec<&str> = Vec::new();
     if let Some(ref writer) = entry.writer {
         authors.push(&writer);
@@ -321,7 +340,7 @@ fn make_entry(entry: &ComicInfo) -> OpdsEntry {
     let title = entry.title.as_ref().map_or("", |x| &**x);
     let summary = entry.summary.as_ref().map_or("", |x| &**x);
     OpdsEntry {
-        id: Cow::Owned(entry.id.unwrap_or(0).to_string()),
+        id,
         updated: entry.modified_at.with_timezone(&Utc),
         title: Cow::Owned(format!(
             "{} v{} {}",
@@ -333,10 +352,6 @@ fn make_entry(entry: &ComicInfo) -> OpdsEntry {
         authors,
         links,
     }
-}
-
-fn get_uuid_id() -> String {
-    format!("urn:uuid:{}", Uuid::new_v4())
 }
 
 fn write_links<W: Write>(writer: &mut EventWriter<W>, links: &[OpdsLink]) -> Result<(), Error> {
