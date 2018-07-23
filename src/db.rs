@@ -144,7 +144,7 @@ impl DB {
             cover_artist = excluded.cover_artist, publisher = excluded.publisher, page_count = excluded.page_count
                                            ")?;
 
-        let issue_id = stmt.insert(&[
+        stmt.insert(&[
             &info.filepath,
             &info.modified_at,
             &info.size,
@@ -164,6 +164,12 @@ impl DB {
             &info.publisher,
             &info.page_count,
         ])?;
+
+        // On upserts, the last rowid thing doesn't work
+        let issue_id: i64 = conn.query_row(
+            "select rowid from issue where filepath=?",
+            &[&info.filepath],
+            |row| row.get(0))?;
 
         if let Some(ref comic_info) = info.comic_info {
             stmt =

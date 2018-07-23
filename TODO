@@ -2,6 +2,7 @@ My TODOlist for beta (roughly in priorty order)
 
 Functionality:
 - prune old paths (probably need a seperate binary since we don't want to wipe DB by mistake)
+- refresh every so often (maybe inotify?)
 
 Post Beta:
 - make DB and xml generation async (fast enough, and probably most use cases won't need high concurrency)
