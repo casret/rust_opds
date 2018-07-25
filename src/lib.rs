@@ -167,7 +167,7 @@ pub fn run(config: Config) -> Result<(), Error> {
         Err(e) => error!("Error scanning: {}, {}", e, e.backtrace()),
         _ => info!("Done scanning directory"),
     });
-    web::start_web_service(Arc::clone(&db), config)?;
+    web::start_web_service(Arc::clone(&db), &config)?;
     Ok(())
 }
 

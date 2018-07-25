@@ -4,7 +4,8 @@ extern crate env_logger;
 extern crate failure;
 extern crate rust_opds;
 extern crate toml;
-#[macro_use] extern crate serde_derive;
+#[macro_use]
+extern crate serde_derive;
 extern crate serde_xml_rs;
 #[macro_use]
 extern crate lazy_static;
@@ -12,22 +13,20 @@ extern crate regex;
 
 use serde_xml_rs::deserialize;
 
-
 use failure::Error;
-use rust_opds::{Config, db, ComicInfo};
+use regex::Regex;
+use rust_opds::{db, ComicInfo, Config};
+use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
-use regex::Regex;
-use std::env;
 use std::path::PathBuf;
-
 
 #[derive(Debug, Deserialize)]
 struct Book {
     pub File: String,
     pub PageCount: Option<String>,
-    pub LastPageRead: Option<String>
+    pub LastPageRead: Option<String>,
 }
 
 /// Utility to import in the comicrack database.  As currently written
@@ -54,15 +53,15 @@ fn main() -> Result<(), Error> {
             Some(db.get_user(&read_user)?)
         } else {
             None
-        }
-        _ => None
+        },
+        _ => None,
     };
 
     println!("config: {:#?}", config);
 
     // I could parse the whole thing as an XML, but since
     // the comicinfo constructor already does it I'll just
-    // slice out the ComicInfo blocks after parsing and transforming the filepath 
+    // slice out the ComicInfo blocks after parsing and transforming the filepath
     let file = File::open(&args[1])?;
     let mut file = BufReader::new(file);
     let mut book_buf = String::new();
@@ -83,14 +82,20 @@ fn main() -> Result<(), Error> {
         }
     }
 
-    db.analyze();
+    db.analyze().ok(); // Ok to ignore error
     Ok(())
 }
 
-fn process_book(config: &Config, db: &db::DB, book: Book, comic_info: &str, user_id: Option<i64>) -> Result<(), Error> {
+fn process_book(
+    config: &Config,
+    db: &db::DB,
+    book: Book,
+    comic_info: &str,
+    user_id: Option<i64>,
+) -> Result<(), Error> {
     let path = if cfg!(unix) {
         // kludge conversion of windows path to unix style
-        
+
         let mut file = book.File;
         if let Some(ref config) = config.import_comicrack {
             if let Some(ref strip) = config.strip_prefix {
@@ -111,7 +116,7 @@ fn process_book(config: &Config, db: &db::DB, book: Book, comic_info: &str, user
 
     let read = if let Some(last) = book.LastPageRead {
         if let Some(pages) = book.PageCount {
-            (pages.parse::<u32>().unwrap_or(std::u32::MAX) - 2) <= last.parse::<u32>().unwrap_or(0) 
+            (pages.parse::<u32>().unwrap_or(std::u32::MAX) - 2) <= last.parse::<u32>().unwrap_or(0)
         } else {
             false
         }
@@ -119,7 +124,10 @@ fn process_book(config: &Config, db: &db::DB, book: Book, comic_info: &str, user
         false
     };
 
-    let issue_id = db.store_comic(&ComicInfo::new(&path, Some(comic_info.to_string()))?, &Vec::new())?;
+    let issue_id = db.store_comic(
+        &ComicInfo::new(&path, Some(comic_info.to_string()))?,
+        &Vec::new(),
+    )?;
     if read && user_id.is_some() {
         println!("Marking {:#?} as read", path);
         db.mark_read(issue_id, user_id.unwrap())?;

@@ -124,10 +124,9 @@ impl DB {
         Ok(DB { pool })
     }
 
-
     pub fn analyze(&self) -> Result<(), Error> {
         let conn = self.pool.get()?;
-        conn.execute( "ANALYZE", &[])?;
+        conn.execute("ANALYZE", &[])?;
         Ok(())
     }
 
@@ -169,7 +168,8 @@ impl DB {
         let issue_id: i64 = conn.query_row(
             "select rowid from issue where filepath=?",
             &[&info.filepath],
-            |row| row.get(0))?;
+            |row| row.get(0),
+        )?;
 
         if let Some(ref comic_info) = info.comic_info {
             stmt =
@@ -259,7 +259,11 @@ impl DB {
         Ok(series)
     }
 
-    pub fn get_unread_for_series(&self, user_id: i64, series: &str) -> Result<Vec<ComicInfo>, Error> {
+    pub fn get_unread_for_series(
+        &self,
+        user_id: i64,
+        series: &str,
+    ) -> Result<Vec<ComicInfo>, Error> {
         let mut query = format!("{} left join (select issue_id from read where user_id = ?) r on i.rowid = r.issue_id where r.issue_id is null ", SELECT_CLAUSE);
 
         let conn = self.pool.get()?;
@@ -280,10 +284,10 @@ impl DB {
         Ok(retval)
     }
 
-
     pub fn get_publishers(&self) -> Result<Vec<(String, DateTime<Utc>)>, Error> {
         let conn = self.pool.get()?;
-        let mut stmt = conn.prepare_cached("select publisher, max(modified_at) from issue group by 1")?;
+        let mut stmt =
+            conn.prepare_cached("select publisher, max(modified_at) from issue group by 1")?;
         let mut rows = stmt.query(&[])?;
 
         let mut pubs = Vec::new();
@@ -296,10 +300,14 @@ impl DB {
         Ok(pubs)
     }
 
-    pub fn get_series_for_publisher(&self, publisher: &str) -> Result<Vec<(String, DateTime<Utc>)>, Error> {
+    pub fn get_series_for_publisher(
+        &self,
+        publisher: &str,
+    ) -> Result<Vec<(String, DateTime<Utc>)>, Error> {
         let conn = self.pool.get()?;
-        let mut stmt =
-            conn.prepare_cached("select series, max(modified_at) from issue where publisher = ? group by 1")?;
+        let mut stmt = conn.prepare_cached(
+            "select series, max(modified_at) from issue where publisher = ? group by 1",
+        )?;
         let mut rows = stmt.query(&[&publisher])?;
 
         let mut series = Vec::new();
@@ -344,14 +352,19 @@ impl DB {
         Ok(stmt.query_row(&[&id], row_to_entry)?)
     }
 
-    pub fn get_page(&self, issue_id: i64, page_id: i32, user_id: i64) -> Result<Vec<u8>, Error> {
+    pub fn get_page(
+        &self,
+        issue_id: i64,
+        page_id: i32,
+        user_id: i64,
+    ) -> Result<(String, Vec<u8>), Error> {
         #[derive(Default)]
         struct Entry {
             issue: String,
             entry: String,
         };
 
-        let page_id:usize = page_id as usize;
+        let page_id: usize = page_id as usize;
 
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare_cached("select i.filepath, p.entry from issue i, page p where i.rowid = p.issue_id and i.rowid = ? order by p.entry")?;
@@ -360,14 +373,20 @@ impl DB {
             entry: r.get(1),
         })?;
 
-        let entries:Vec<Entry> = iter.map(|e| e.unwrap_or_default())
-            .filter(|e| e.entry.ends_with("jpg")).collect();
+        let entries: Vec<Entry> = iter.map(|e| e.unwrap_or_default())
+            .filter(|e| {
+                e.entry.ends_with("jpg") || e.entry.ends_with("gif") || e.entry.ends_with("png")
+            })
+            .collect();
 
         if page_id < entries.len() {
             if page_id + 3 > entries.len() {
                 self.mark_read(issue_id, user_id).ok(); // Ignore the error
             }
-            super::get_bytes_for_entry(&entries[page_id].issue, &entries[page_id].entry)
+            Ok((
+                entries[page_id].entry.clone(),
+                super::get_bytes_for_entry(&entries[page_id].issue, &entries[page_id].entry)?,
+            ))
         } else {
             Err(::failure::err_msg("No such page"))
         }
@@ -384,9 +403,7 @@ impl DB {
     /// check_or_provision_user, this version will raise an error if not found
     pub fn get_user(&self, username: &str) -> Result<i64, Error> {
         let conn = self.pool.get()?;
-        let mut stmt = conn.prepare_cached(
-            "select rowid from user where username = ?",
-        )?;
+        let mut stmt = conn.prepare_cached("select rowid from user where username = ?")?;
         Ok(stmt.query_row(&[&username], |row| row.get(0))?)
     }
 

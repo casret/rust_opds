@@ -102,9 +102,12 @@ struct OpdsFeed<'a> {
 }
 
 fn make_id_from_url(tag_authority: &str, url: &str) -> String {
-    format!("tag:{}:{}", tag_authority, url.trim_left_matches("/").replace("/", ":"))
+    format!(
+        "tag:{}:{}",
+        tag_authority,
+        url.trim_left_matches('/').replace("/", ":")
+    )
 }
-
 
 pub fn make_acquisition_feed(
     config: &Config,
@@ -127,7 +130,10 @@ pub fn make_acquisition_feed(
             count: None,
         },
     ];
-    let entries = entries.into_iter().map(|e| make_entry(&config.tag_authority, e)).collect();
+    let entries = entries
+        .into_iter()
+        .map(|e| make_entry(&config.tag_authority, e))
+        .collect();
 
     let feed = OpdsFeed {
         id,
@@ -176,9 +182,8 @@ pub fn make_subsection_feed(
                     rel: Rel::Subsection,
                     url: Cow::Owned(url),
                     count: None,
-                },
-                ],
-                sub.1
+                }],
+                sub.1,
             )
         })
         .collect();
@@ -371,8 +376,11 @@ fn write_links<W: Write>(writer: &mut EventWriter<W>, links: &[OpdsLink]) -> Res
         let count_str;
 
         let event = match link.count {
-            Some(count) => { count_str = count.to_string(); event.attr(*COUNT_NAME, &count_str) },
-            None => event
+            Some(count) => {
+                count_str = count.to_string();
+                event.attr(*COUNT_NAME, &count_str)
+            }
+            None => event,
         };
 
         writer.write(event)?;
