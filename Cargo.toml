@@ -25,7 +25,7 @@ tokio-fs = "0.1.1"
 tokio-io = "0.1.7"
 tokio-threadpool = "0.1.5"
 toml = "0.4"
-unrar ={ git = "https://github.com/casret/unrar.rs", rev = "3c2f6253b1b01354039147ad6b92e53f7ba865f0" }
+unrar ={ git = "https://github.com/casret/unrar.rs"}
 uuid = { version = "0.6", features = ["v4"] }
 url = "1.7.0"
 walkdir = "2"
