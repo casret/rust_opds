@@ -341,7 +341,6 @@ fn make_entry<'a>(tag_authority: &str, entry: &'a ComicInfo) -> OpdsEntry<'a> {
         },
     ];
 
-    let series = entry.series.as_ref().map_or("", |x| &**x);
     let title = entry.title.as_ref().map_or("", |x| &**x);
     let summary = entry.summary.as_ref().map_or("", |x| &**x);
     OpdsEntry {
@@ -349,7 +348,7 @@ fn make_entry<'a>(tag_authority: &str, entry: &'a ComicInfo) -> OpdsEntry<'a> {
         updated: entry.modified_at.with_timezone(&Utc),
         title: Cow::Owned(format!(
             "{} v{} {}",
-            series,
+            entry.get_series(),
             entry.volume.unwrap_or(1),
             entry.issue_number.unwrap_or(1)
         )),

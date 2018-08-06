@@ -156,6 +156,13 @@ impl ComicInfo {
             .map(|s| s.to_string_lossy().into())
             .unwrap_or_default()
     }
+
+    pub fn get_series(&self) -> String {
+        match self.series {
+            Some(ref s) => s.clone(),
+            None => self.get_filename()
+        }
+    }
 }
 
 pub fn run(config: Config) -> Result<(), Error> {
