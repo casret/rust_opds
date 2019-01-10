@@ -154,6 +154,18 @@ fn serve_opds(req: &Request<Body>, db: &DB, config: &Config) -> ResponseFuture {
             );
             Box::new(future::ok(Response::new(body)))
         }
+        (&Method::GET, Some("recent_unread_series")) => {
+            let mut entries = db.get_recent_unread_series(user_id).unwrap();
+            let body = Body::from(
+                opds::make_subsection_feed(
+                    config,
+                    "/unread",
+                    "Recent unread series",
+                    &mut entries,
+                    ).unwrap(),
+                    );
+                Box::new(future::ok(Response::new(body)))
+        }
         (&Method::GET, Some("comic")) => match path_parts.next() {
             Some(id) => {
                 let id = id.parse::<i64>().unwrap();

@@ -269,13 +269,26 @@ pub fn make_navigation_feed(config: &Config) -> Result<String, Error> {
         ),
         OpdsEntry::new(
             format!("tag:{}:unread", config.tag_authority),
-            "Unread comics by Series",
-            "Unread comics by Series",
+            "Unread Series",
+            "Unread Series",
             Vec::new(),
             vec![OpdsLink {
                 link_type: LinkType::Navigation,
                 rel: Rel::Subsection,
                 url: Cow::Borrowed("/unread"),
+                count: None,
+            }],
+            Utc::now(),
+        ),
+        OpdsEntry::new(
+            format!("tag:{}:recent_unread", config.tag_authority),
+            "Recent Unread Series",
+            "Recent Unread Series",
+            Vec::new(),
+            vec![OpdsLink {
+                link_type: LinkType::Navigation,
+                rel: Rel::Subsection,
+                url: Cow::Borrowed("/recent_unread_series"),
                 count: None,
             }],
             Utc::now(),
